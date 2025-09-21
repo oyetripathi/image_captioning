@@ -7,3 +7,9 @@ class BaseTokenizer:
     
     def decode(self, text):
         raise NotImplementedError
+    
+    def save(self, file_path):
+        raise NotImplementedError
+    
+    def load(self, file_path):
+        raise NotImplementedError

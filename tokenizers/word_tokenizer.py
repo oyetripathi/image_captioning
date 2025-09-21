@@ -32,3 +32,15 @@ class WordTokenizer(BaseTokenizer):
     def decode(self, token_ids):
         words = [self.id2word.get(i, "<unk>") for i in token_ids]
         return " ".join(words).replace("<end>", "").replace("<start>", "").replace("<pad>", "").strip()
+    
+    def save(self, file_path):
+        if self.vocab is None:
+            raise Exception("Please build vocabulary first")
+        
+        with open(file_path, "w") as f:
+            json.dump(self.vocab, f)
+    
+    def load(self, file_path):
+        with open(file_path, "r") as f:
+            self.vocab = json.load(f)
+            self.id2word = {i: w for w,i in self.vocab.items()}

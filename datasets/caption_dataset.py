@@ -3,8 +3,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 class FlickrDataset(Dataset):
-    def __init__(self, file_path, img_dir, tokenizer, img_transform=None, y_transform=None, img_resize_shape=(224, 224)):
-        self.annot_df = pd.read_csv(file_path)
+    def __init__(self, annot_df, img_dir, tokenizer, img_transform=None, y_transform=None, img_resize_shape=(224, 224)):
+        self.annot_df = annot_df
         self.img_dir = img_dir
         self.tokenizer = tokenizer
         self.img_transform = img_transform

@@ -20,8 +20,4 @@ def build_word_vocab(df, text_column="caption", min_freq=2, max_vocab=None, save
     for idx, word in enumerate(words, start=4):
         vocab[word] = idx
 
-    with open(save_path, "w") as f:
-        json.dump(vocab, f, indent=4)
-
-    print(f"Vocabulary saved to {save_path}. Total size: {len(vocab)}")
     return vocab
