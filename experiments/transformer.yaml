@@ -1,0 +1,40 @@
+EXPERIMENT_NAME: "transformer"
+DATASET:
+  MODULE: "datasets.caption_dataset"
+  CLASS: "FlickrDataset"
+  TRAIN:
+    CSV_PATH: "data_files/flickr30k_images/train.csv"
+    IMAGE_DIR: "data_files/flickr30k_images/flickr30k_images"
+  VAL:
+    CSV_PATH: "data_files/flickr30k_images/val.csv"
+    IMAGE_DIR: "data_files/flickr30k_images/flickr30k_images"
+  TEST:
+    CSV_PATH: "data_files/flickr30k_images/test.csv"
+    IMAGE_DIR: "data_files/flickr30k_images/flickr30k_images"
+TOKENIZER:
+  MODULE: "tokenizers.word_tokenizer"
+  CLASS: "WordTokenizer"
+ENCODER:
+  MODULE: "models.encoders"
+  CLASS: "ResNet101Encoder"
+  PRETRAINED: True
+  PARAMS:
+    fine_tune: True
+DECODER:
+  MODULE: "models.decoders"
+  CLASS: "DecoderTransformer"
+  PRETRAINED_EMBEDDINGS_PATH: "data_files/glove.6B.100d.txt"    
+  PARAMS:
+    feature_dim: 2048
+    embed_dim: 100
+    num_heads: 4
+    num_layers: 6
+MODEL:
+  MODULE: "models.vanilla_model"
+  CLASS: "VanillaCaptioningModel"
+TRAINING:
+  EPOCHS: 5
+  BATCH_SIZE: 32
+  LR: 0.001
+TESTING:
+  BATCH_SIZE: 32

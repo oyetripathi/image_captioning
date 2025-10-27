@@ -1,0 +1,37 @@
+EXPERIMENT_NAME: "test"
+DATASET:
+  MODULE: "datasets.caption_dataset"
+  CLASS: "FlickrDataset"
+  TRAIN:
+    CSV_PATH: "data_files/flickr8k/train.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+  VAL:
+    CSV_PATH: "data_files/flickr8k/val.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+  TEST:
+    CSV_PATH: "data_files/flickr8k/test.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+TOKENIZER:
+  MODULE: "tokenizers.word_tokenizer"
+  CLASS: "WordTokenizer"
+ENCODER:
+  MODULE: "models.encoders"
+  CLASS: "ResNet101Encoder"
+  PRETRAINED: True
+  PARAMS:
+    fine_tune: True
+DECODER:
+  MODULE: "models.decoders"
+  CLASS: "DecoderLSTM"
+  PARAMS:
+    feature_dim: 2048
+    embed_dim: 512
+MODEL:
+  MODULE: "models.vanilla_model"
+  CLASS: "VanillaCaptioningModel"
+TRAINING:
+  EPOCHS: 3
+  BATCH_SIZE: 16
+  LR: 0.001
+TESTING:
+  BATCH_SIZE: 16

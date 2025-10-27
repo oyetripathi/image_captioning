@@ -1,15 +1,19 @@
 import json
 from tokenizers.base_tokenizer import BaseTokenizer
-from tokenizers.build_vocab import build_word_vocab
+from utils.build_vocab import build_word_vocab
 
 class WordTokenizer(BaseTokenizer):
     def __init__(self, max_len=30):
         super().__init__(max_len)
         self.vocab = None
         self.id2word = None
+        self.pad_token_id = None
+        self.vocab_size = 0
     
     def build_vocab(self, df, **kwargs):
         self.vocab = build_word_vocab(df, **kwargs)
+        self.vocab_size = len(self.vocab)
+        self.pad_token_id = self.vocab["<pad>"]
         self.id2word = {i: w for w,i in self.vocab.items()}
     
     def encode(self, text):
@@ -43,4 +47,6 @@ class WordTokenizer(BaseTokenizer):
     def load(self, file_path):
         with open(file_path, "r") as f:
             self.vocab = json.load(f)
+            self.vocab_size = len(self.vocab)
+            self.pad_token_id = self.vocab["<pad>"]
             self.id2word = {i: w for w,i in self.vocab.items()}

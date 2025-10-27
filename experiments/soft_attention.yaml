@@ -1,0 +1,41 @@
+EXPERIMENT_NAME: "soft_attention"
+DATASET:
+  MODULE: "datasets.caption_dataset"
+  CLASS: "FlickrDataset"
+  TRAIN:
+    CSV_PATH: "data_files/flickr8k/train.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+  VAL:
+    CSV_PATH: "data_files/flickr8k/val.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+  TEST:
+    CSV_PATH: "data_files/flickr8k/test.csv"
+    IMAGE_DIR: "data_files/flickr8k/Images"
+TOKENIZER:
+  MODULE: "tokenizers.word_tokenizer"
+  CLASS: "WordTokenizer"
+ENCODER:
+  MODULE: "models.encoders"
+  CLASS: "ResNet101Encoder"
+  PRETRAINED: True
+  PARAMS:
+    fine_tune: True
+DECODER:
+  MODULE: "models.decoders"
+  CLASS: "DecoderLSTMWithSoftAttention"
+  PRETRAINED_EMBEDDINGS_PATH: "data_files/glove.6B.100d.txt"    
+  PARAMS:
+    feature_dim: 2048
+    hidden_dim: 256
+    attention_dim: 64
+    embed_dim: 100
+
+MODEL:
+  MODULE: "models.soft_attention_model"
+  CLASS: "CaptioningModelWithSoftAttention"
+TRAINING:
+  EPOCHS: 5
+  BATCH_SIZE: 32
+  LR: 0.001
+TESTING:
+  BATCH_SIZE: 32

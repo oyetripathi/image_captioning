@@ -6,11 +6,13 @@ def pad_captions(batch, pad_token_id):
     captions = [torch.tensor(x["input_ids"], dtype=torch.long) for x in batch]
     masks = [torch.tensor(x["attention_mask"], dtype=torch.long) for x in batch]
 
+    row_ids = torch.tensor([x["id"] for x in batch], dtype=torch.long)
     images = torch.stack(images, dim=0)
     captions = pad_sequence(captions, batch_first=True, padding_value=pad_token_id)
     masks = pad_sequence(masks, batch_first=True, padding_value=0)
 
     return {
+        "id": row_ids,  
         "images": images,
         "captions": captions,
         "masks": masks

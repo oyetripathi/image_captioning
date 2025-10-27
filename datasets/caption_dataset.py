@@ -14,6 +14,7 @@ class FlickrDataset(Dataset):
         return self.annot_df.shape[0]
     
     def __getitem__(self, idx):
+        row_id = self.annot_df.index[idx]
         img_filename = self.annot_df.iloc[idx, 0]
         img_path = f"{self.img_dir}/{img_filename}"
         image = Image.open(img_path).convert("RGB").resize(self.img_resize_shape)
@@ -24,6 +25,7 @@ class FlickrDataset(Dataset):
             image = self.img_transform(image)
 
         return {    
+            "id": row_id,
             "image": image,
             "caption_text": label,
             "input_ids": token_ids,
