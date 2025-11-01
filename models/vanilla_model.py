@@ -20,7 +20,6 @@ class VanillaCaptioningModel(nn.Module):
         num_batch = len(train_loder)
         self.to(device)
         self.train()
-        # hooked_grads = register_hooks(self)
         for batch_idx, batch in enumerate(tqdm(train_loder)):
             optimizer.zero_grad()
             images, captions = batch["images"].to(device), batch["captions"].to(device)
