@@ -10,28 +10,30 @@ class VanillaCaptioningModel(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, images, captions):
+    def forward(self, images, captions, masks):
         img_encoding = self.encoder(images)
-        outputs = self.decoder(captions, img_encoding)
+        outputs = self.decoder(captions, img_encoding, masks)
         return outputs
     
-    def train_model(self, train_loder, loss_fn, optimizer, device, wandb_run=None):
+    def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None):
         total_loss = 0
         num_batch = len(train_loder)
         self.to(device)
         self.train()
         for batch_idx, batch in enumerate(tqdm(train_loder)):
             optimizer.zero_grad()
-            images, captions = batch["images"].to(device), batch["captions"].to(device)
-            logits = self(images, captions[:, :-1])
+            images, captions, masks = batch["images"].to(device), batch["captions"].to(device), batch["masks"].to(device)
+            logits = self(images, captions[:, :-1], masks[:, :-1])
             iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
             iter_loss.backward()
             optimizer.step()
+            scheduler.step()
             total_loss += iter_loss.item()
             if wandb_run:
                 wandb_run.log({"Batch Loss": iter_loss.item()})
+                wandb_run.log({"Learning Rate": optimizer.param_groups[0]["lr"]})
         return total_loss / num_batch
-    
+        
     def eval_model(self, val_loader, loss_fn, device, wandb_run=None):
         total_loss = 0
         num_batch = len(val_loader)
@@ -39,8 +41,8 @@ class VanillaCaptioningModel(nn.Module):
         self.eval()
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader)):
-                images, captions = batch["images"].to(device), batch["captions"].to(device)
-                logits = self(images, captions[:, :-1])
+                images, captions, masks = batch["images"].to(device), batch["captions"].to(device), batch["masks"].to(device)
+                logits = self(images, captions[:, :-1], masks[:, :-1])
                 iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
                 total_loss += iter_loss.item()
                 if wandb_run:
@@ -55,7 +57,7 @@ class VanillaCaptioningModel(nn.Module):
         else:
             return tokenizer.decode(token_ids)
     
-    def _beam_search_batch(self, img_encodings, tokenizer, device, beam_size=3, max_len=20):
+    def _beam_search_batch(self, img_encodings, tokenizer, device, beam_size=3, max_len=20, alpha=0.6):
         batch_size = img_encodings.shape[0]
         start_token = tokenizer.vocab.get("<start>")
         end_token = tokenizer.vocab.get("<end>")
@@ -95,7 +97,13 @@ class VanillaCaptioningModel(nn.Module):
             finished = finished.gather(1, beam_indices) | (token_indices == end_token)
             if finished.all():
                 break
-        best_sequences = sequences[:, 0, :].cpu().tolist()
+        end_mask = (sequences == end_token).to(torch.int64)
+        first_end = torch.where(
+            end_mask.any(dim=-1), end_mask.argmax(dim=-1)+1, torch.tensor(max_len, device=device)
+        )
+        final_scores = scores / (first_end.float() ** alpha)
+        best_beam_idx = final_scores.argmax(dim=1)
+        best_sequences = sequences[torch.arange(batch_size), best_beam_idx, :].cpu().tolist()
         return best_sequences
 
     def generate_caption(self, dataloader, tokenizer, device, max_len=20, beam_size=1): 

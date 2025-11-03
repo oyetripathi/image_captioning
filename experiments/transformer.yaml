@@ -28,13 +28,15 @@ DECODER:
     feature_dim: 2048
     embed_dim: 100
     num_heads: 4
-    num_layers: 6
+    num_layers: 12
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
 TRAINING:
   EPOCHS: 5
   BATCH_SIZE: 32
-  LR: 0.001
+  LR: 0.0005
+  WARMUP_STEPS: 2000
 TESTING:
-  BATCH_SIZE: 32
+  BATCH_SIZE: 96
+LOG_WANDB: True

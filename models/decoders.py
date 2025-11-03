@@ -16,7 +16,7 @@ class DecoderLSTM(nn.Module):
         self.lstm2 = nn.LSTM(512, 128, num_layers=2, batch_first=True)
         self.fc = nn.Linear(128, vocab_size)
     
-    def forward(self, captions, img_encoding):
+    def forward(self, captions, img_encoding, mask=None):
         embeddings = self.embed(captions)
         img_encoding = img_encoding.mean(dim=[-2, -1]).unsqueeze(0)
         img_encoding = self.init_h(img_encoding)
@@ -77,12 +77,13 @@ class TransformerFeedForward(nn.Module):
         self.fc1 = nn.Linear(embed_dim, ff_dim)
         self.fc2 = nn.Linear(ff_dim, embed_dim)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.1)
     
     def forward(self, x):
         out = self.fc1(x)
         out = self.relu(out)
+        out = self.dropout(out)
         out = self.fc2(out)
-        out = self.relu(out)
         return out
 
 class DecoderTransformerLayer(nn.Module):
@@ -96,7 +97,7 @@ class DecoderTransformerLayer(nn.Module):
         self.cross_attn = MultiHeadAttention(num_heads, embed_dim)
         self.layer_norm2 = nn.LayerNorm(embed_dim)
 
-        self.ff = TransformerFeedForward(embed_dim, embed_dim)
+        self.ff = TransformerFeedForward(embed_dim, 4*embed_dim)
         self.layer_norm3 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(p=0.1)
 
@@ -107,13 +108,15 @@ class DecoderTransformerLayer(nn.Module):
         img_encodings = img_encodings.view(batch_size, self.feature_dim, -1).permute((0, 2, 1))
         img_encodings = self.encoder_proj(img_encodings)
 
-        causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=embeddings.device))
-        out1, _ = self.self_attn(embeddings, embeddings, embeddings, causal_mask)
+        if mask is not None:
+            causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=embeddings.device)).unsqueeze(0)
+            mask = mask.unsqueeze(1).unsqueeze(2)
+            mask =  mask.long() & causal_mask.long()
+
+        out1, _ = self.self_attn(embeddings, embeddings, embeddings, mask)
         out1 = self.layer_norm1(self.dropout(out1) + embeddings)
 
-        if mask is not None:
-            mask = mask.unsqueeze(1).unsqueeze(2)
-        out2, __ = self.cross_attn(out1, img_encodings, img_encodings, mask)
+        out2, __ = self.cross_attn(out1, img_encodings, img_encodings)
         out2 = self.layer_norm2(self.dropout(out2) + out1)
 
         out3 = self.ff(out2)
@@ -158,7 +161,7 @@ class DecoderTransformer(nn.Module):
         return pe
         
     def forward(self, captions, img_encodings, mask=None):
-        embeddings = self.embed(captions)** (self.embed_dim ** 0.5)
+        embeddings = self.embed(captions) * (self.embed_dim ** 0.5)
         pos_enc = self.get_positional_encoding(embeddings, embeddings.device)
         
         out = self.dropout(self.layer_norm(embeddings + pos_enc))
@@ -167,5 +170,4 @@ class DecoderTransformer(nn.Module):
             out = layer(out, img_encodings, mask)
 
         out = self.linear(out)
-        out = self.relu(out)
         return out
