@@ -3,12 +3,11 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 class FlickrDataset(Dataset):
-    def __init__(self, annot_df, img_dir, tokenizer, img_transform=None, y_transform=None, img_resize_shape=(224, 224)):
+    def __init__(self, annot_df, img_dir, tokenizer, img_transform=None, y_transform=None):
         self.annot_df = annot_df
         self.img_dir = img_dir
         self.tokenizer = tokenizer
         self.img_transform = img_transform
-        self.img_resize_shape = img_resize_shape
     
     def __len__(self):
         return self.annot_df.shape[0]
@@ -17,7 +16,7 @@ class FlickrDataset(Dataset):
         row_id = self.annot_df.index[idx]
         img_filename = self.annot_df.iloc[idx, 0]
         img_path = f"{self.img_dir}/{img_filename}"
-        image = Image.open(img_path).convert("RGB").resize(self.img_resize_shape)
+        image = Image.open(img_path).convert("RGB")
         
         label = self.annot_df.iloc[idx, 1]
         token_ids, attention_mask = self.tokenizer.encode(label)

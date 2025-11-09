@@ -5,11 +5,9 @@ import os
 import json
 from PIL import Image
 from utils.visualize import visualize_predictions
+from utils.build_vocab import clean_txt
 from metrics.BLEU import compute_bleu
 from metrics.CIDEr import compute_cider
-
-def clean_txt(txt):
-    return " ".join([x.strip().lower() for x in txt.strip().split() if (x not in [".", ",", "!", "?", ";", ":"]) and len(x) > 1])
 
 def run_eval(config):
     EXPERIMENT_NAME = config.get("EXPERIMENT_NAME")
@@ -35,9 +33,9 @@ def run_eval(config):
 
     metrics = {}
     df["caption"] = df["caption"].apply(clean_txt)
-    df["generated_caption"] =df["generated_caption"].apply(clean_txt)
+    df["generated_caption"] = df["generated_caption"].apply(clean_txt)
     df = df.set_index("image")
-
+    
     all_ims = list(df.index.unique())
     all_refs = [df.loc[im]["caption"].to_list() for im in all_ims]
     all_preds = [df.loc[im]["generated_caption"].unique().tolist()[0] for im in all_ims]

@@ -14,9 +14,11 @@ DATASET:
 TOKENIZER:
   MODULE: "tokenizers.word_tokenizer"
   CLASS: "WordTokenizer"
+  BUILD_VOCAB_PARAMS:
+    min_freq: 2
 ENCODER:
   MODULE: "models.encoders"
-  CLASS: "ResNet101Encoder"
+  CLASS: "ResNet50Encoder"
   PRETRAINED: True
   PARAMS:
     fine_tune: True
@@ -27,8 +29,9 @@ DECODER:
   PARAMS:
     feature_dim: 2048
     embed_dim: 100
+    d_model: 256
     num_heads: 4
-    num_layers: 12
+    num_layers: 6
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
@@ -36,7 +39,7 @@ TRAINING:
   EPOCHS: 5
   BATCH_SIZE: 32
   LR: 0.0005
-  WARMUP_STEPS: 2000
+  WARMUP_STEPS: 3000
 TESTING:
   BATCH_SIZE: 96
 LOG_WANDB: True

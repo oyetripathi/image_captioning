@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils.record_grads import register_hooks
+from metrics.BLEU import compute_bleu
 from tqdm import tqdm
 
 
@@ -26,6 +26,7 @@ class VanillaCaptioningModel(nn.Module):
             logits = self(images, captions[:, :-1], masks[:, :-1])
             iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
             iter_loss.backward()
+            nn.utils.clip_grad_norm_(self.parameters(), 1.0)
             optimizer.step()
             scheduler.step()
             total_loss += iter_loss.item()
@@ -48,7 +49,7 @@ class VanillaCaptioningModel(nn.Module):
                 if wandb_run:
                     wandb_run.log({"Validation Batch Loss": iter_loss.item()})
         return total_loss / num_batch
-    
+
     @staticmethod
     def decode_caption(token_ids, tokenizer):
         eos_token = tokenizer.vocab.get("<end>")
@@ -69,8 +70,8 @@ class VanillaCaptioningModel(nn.Module):
         img_encodings = (
             img_encodings.
             unsqueeze(1)
-            .repeat(1, beam_size, 1, 1, 1)
-            .view(-1, img_encodings.shape[1], img_encodings.shape[2], img_encodings.shape[3])
+            .repeat(1, beam_size, 1, 1)
+            .view(-1, img_encodings.shape[1], img_encodings.shape[2])
         )
 
         finished = torch.zeros(batch_size, beam_size, dtype=torch.bool).to(device)
@@ -120,5 +121,5 @@ class VanillaCaptioningModel(nn.Module):
                 row_ids.extend(batch["id"].cpu().numpy().tolist())
         return {
             "id": row_ids,
-            "generated_caption": captions
+            "generated_caption": captions,
         }

@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 
@@ -34,7 +35,7 @@ class ScaledDotProductAttention(nn.Module):
     
     def forward(self, query, key, value, mask=None):
         d_k = query.shape[-1]
-        scores = torch.matmul(query, key.transpose(-2, -1)) / torch.sqrt(torch.tensor(d_k, dtype=torch.float32))
+        scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
         if mask is not None:
             scores.masked_fill_(mask == 0, float('-inf'))
         attn_weights = self.softmax(scores)

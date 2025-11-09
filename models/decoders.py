@@ -56,7 +56,6 @@ class DecoderLSTMWithSoftAttention(nn.Module):
         batch_size = captions.shape[0]
         seq_len = captions.shape[1]
         device = captions.device
-        img_encodings = img_encodings.view(batch_size, self.feature_dim, -1).permute((0, 2, 1))
         h,c = self.init_hidden_state(batch_size, self.hidden_dim, device)
         outputs = torch.zeros((batch_size, seq_len, self.vocab_size)).to(device)
         attn_wts = torch.zeros((batch_size, seq_len, img_encodings.shape[1])).to(device)
@@ -72,10 +71,10 @@ class DecoderLSTMWithSoftAttention(nn.Module):
         return h,c
 
 class TransformerFeedForward(nn.Module):
-    def __init__(self, embed_dim, ff_dim):
+    def __init__(self, d_model, ff_dim):
         super().__init__()
-        self.fc1 = nn.Linear(embed_dim, ff_dim)
-        self.fc2 = nn.Linear(ff_dim, embed_dim)
+        self.fc1 = nn.Linear(d_model, ff_dim)
+        self.fc2 = nn.Linear(ff_dim, d_model)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.1)
     
@@ -87,31 +86,30 @@ class TransformerFeedForward(nn.Module):
         return out
 
 class DecoderTransformerLayer(nn.Module):
-    def __init__(self, vocab_size, embed_dim, feature_dim, num_heads, pretrained_embeddings=None):
+    def __init__(self, vocab_size, d_model, feature_dim, num_heads, pretrained_embeddings=None):
         super().__init__()
-        self.self_attn = MultiHeadAttention(num_heads, embed_dim)
-        self.layer_norm1 = nn.LayerNorm(embed_dim)
+        self.self_attn = MultiHeadAttention(num_heads, d_model)
+        self.layer_norm1 = nn.LayerNorm(d_model)
 
         self.feature_dim = feature_dim
-        self.encoder_proj = nn.Linear(feature_dim, embed_dim)
-        self.cross_attn = MultiHeadAttention(num_heads, embed_dim)
-        self.layer_norm2 = nn.LayerNorm(embed_dim)
+        self.encoder_proj = nn.Linear(feature_dim, d_model)
+        self.encoder_layer_norm = nn.LayerNorm(d_model)
+        self.cross_attn = MultiHeadAttention(num_heads, d_model)
+        self.layer_norm2 = nn.LayerNorm(d_model)
 
-        self.ff = TransformerFeedForward(embed_dim, 4*embed_dim)
-        self.layer_norm3 = nn.LayerNorm(embed_dim)
+        self.ff = TransformerFeedForward(d_model, 4*d_model)
+        self.layer_norm3 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(p=0.1)
 
     def forward(self, embeddings, img_encodings, mask=None):
         batch_size = embeddings.shape[0]
         seq_len = embeddings.shape[1]
 
-        img_encodings = img_encodings.view(batch_size, self.feature_dim, -1).permute((0, 2, 1))
-        img_encodings = self.encoder_proj(img_encodings)
+        img_encodings = self.encoder_layer_norm(self.encoder_proj(img_encodings))
 
         if mask is not None:
-            causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=embeddings.device)).unsqueeze(0)
-            mask = mask.unsqueeze(1).unsqueeze(2)
-            mask =  mask.long() & causal_mask.long()
+            causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=mask.device, dtype=torch.bool))
+            mask = mask.unsqueeze(1).unsqueeze(2) & causal_mask.unsqueeze(0)
 
         out1, _ = self.self_attn(embeddings, embeddings, embeddings, mask)
         out1 = self.layer_norm1(self.dropout(out1) + embeddings)
@@ -126,44 +124,45 @@ class DecoderTransformerLayer(nn.Module):
 
 
 class DecoderTransformer(nn.Module):
-    def __init__(self, vocab_size, embed_dim, feature_dim, num_heads, num_layers, pretrained_embeddings=None):
+    def __init__(self, vocab_size, embed_dim, d_model, feature_dim, num_heads, num_layers, pretrained_embeddings=None):
         super().__init__()
+        self.vocab_size = vocab_size
         self.embed_dim = embed_dim
+        self.d_model = d_model
         if pretrained_embeddings is not None:
             self.embed = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=False)
         else:
             self.embed = nn.Embedding(vocab_size, self.embed_dim)
-        self.layer_norm = nn.LayerNorm(embed_dim)
+        self.project_embed = nn.Linear(self.embed_dim, self.d_model)
+        self.layer_norm = nn.LayerNorm(self.d_model)
 
         self.layers = nn.ModuleList([
             DecoderTransformerLayer(
                 vocab_size,
-                embed_dim,
+                d_model,
                 feature_dim,
                 num_heads,
                 pretrained_embeddings
             ) for _ in range(num_layers)
         ])
-        self.linear = nn.Linear(embed_dim, vocab_size)
-        self.relu = nn.ReLU()
+        self.linear = nn.Linear(d_model, vocab_size)
         self.dropout = nn.Dropout(p=0.1)
     
     def get_positional_encoding(self, embeddings, device):
         batch_size = embeddings.shape[0]
         seq_len = embeddings.shape[1]
-        pe = torch.zeros((seq_len, self.embed_dim), dtype=torch.float32).to(device)
+        pe = torch.zeros((seq_len, self.d_model), dtype=torch.float32).to(device)
         phase_num = torch.arange(0, seq_len, dtype=torch.float32)
-        phase_denom = (10**4) ** (-1*torch.arange(0, self.embed_dim, 2)/(self.embed_dim))
+        phase_denom = (10**4) ** (-1*torch.arange(0, self.d_model, 2)/(self.d_model))
         phase = phase_num.unsqueeze(-1) * phase_denom.unsqueeze(0)
         pe[:, ::2] = torch.sin(phase)
-        pe[:, 1::2] = torch.cos(phase)[:, :self.embed_dim//2]
+        pe[:, 1::2] = torch.cos(phase)[:, :self.d_model//2]
         pe = pe.unsqueeze(0).repeat(batch_size, 1, 1)
         return pe
         
     def forward(self, captions, img_encodings, mask=None):
-        embeddings = self.embed(captions) * (self.embed_dim ** 0.5)
+        embeddings = self.project_embed(self.embed(captions)) * (self.d_model ** 0.5)
         pos_enc = self.get_positional_encoding(embeddings, embeddings.device)
-        
         out = self.dropout(self.layer_norm(embeddings + pos_enc))
 
         for layer in self.layers:

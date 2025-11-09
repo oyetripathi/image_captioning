@@ -49,27 +49,6 @@ def run_training(config):
     tokenizer.build_vocab(train_df, **config["TOKENIZER"].get("BUILD_VOCAB_PARAMS", {}))
     pad_token_id = tokenizer.pad_token_id
 
-    im_transforms = transforms.Compose([
-        transforms.ToTensor()
-    ])
-
-    train_dataset = DatasetClass(
-        train_df,
-        img_dir=config["DATASET"]["TRAIN"]["IMAGE_DIR"],
-        tokenizer=tokenizer, img_transform=im_transforms,
-        **config["DATASET"]["TRAIN"].get("PARAMS", {})
-    )
-
-    val_dataset = DatasetClass(
-        val_df,
-        img_dir=config["DATASET"]["VAL"]["IMAGE_DIR"],
-        tokenizer=tokenizer, img_transform=im_transforms,
-        **config["DATASET"]["VAL"].get("PARAMS", {})
-    )
-
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: pad_captions(x, pad_token_id))
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: pad_captions(x, pad_token_id))
-
     embeddings = None
     if config["DECODER"].get("PRETRAINED_EMBEDDINGS_PATH", None) is not None:
         embeddings = load_pretrained_embeddings(
@@ -92,10 +71,27 @@ def run_training(config):
     print(f"Total encoder parameters: {sum(p.numel() for p in model.encoder.parameters() if p.requires_grad)}")
     print(f"Total decoder parameters: {sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)}")
 
+    train_dataset = DatasetClass(
+        train_df,
+        img_dir=config["DATASET"]["TRAIN"]["IMAGE_DIR"],
+        tokenizer=tokenizer, img_transform=encoder.transforms,
+        **config["DATASET"]["TRAIN"].get("PARAMS", {})
+    )
+
+    val_dataset = DatasetClass(
+        val_df,
+        img_dir=config["DATASET"]["VAL"]["IMAGE_DIR"],
+        tokenizer=tokenizer, img_transform=encoder.transforms,
+        **config["DATASET"]["VAL"].get("PARAMS", {})
+    )
+
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: pad_captions(x, pad_token_id))
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: pad_captions(x, pad_token_id))
+
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id, label_smoothing=0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = get_inverse_sqrt_scheduler(optimizer, warmup_steps=WARMUP_STEPS)
-    
+
     for epoch in range(EPOCHS):
         print(f"Running Epoch {epoch+1}/{EPOCHS}")
         train_loss = model.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)

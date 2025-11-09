@@ -1,12 +1,20 @@
+import re
 import json
+import random
 from collections import Counter
 import pandas as pd
+
+def clean_txt(txt):
+        txt = txt.strip().lower()
+        txt = re.sub("[^a-z]+", " ", txt)
+        return " ".join([x.strip().lower() for x in txt.split()]) 
 
 def build_word_vocab(df, text_column="caption", min_freq=2, max_vocab=None):
     all_words = []
     for text in df[text_column]:
-        words = str(text).lower().strip().split()
+        words = clean_txt(text).split()
         all_words.extend(words)
+    random.shuffle(all_words)
 
     word_counts = Counter(all_words)
 

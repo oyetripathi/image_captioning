@@ -1,6 +1,7 @@
+import re
 import json
 from tokenizers.base_tokenizer import BaseTokenizer
-from utils.build_vocab import build_word_vocab
+from utils.build_vocab import build_word_vocab, clean_txt
 
 class WordTokenizer(BaseTokenizer):
     def __init__(self, max_len=30):
@@ -17,11 +18,10 @@ class WordTokenizer(BaseTokenizer):
         self.id2word = {i: w for w,i in self.vocab.items()}
     
     def encode(self, text):
-
         if self.vocab is None:
             raise Exception("Please build vocabulary first")
 
-        tokens = ["<start>"]+ text.lower().split() + ["<end>"]
+        tokens = ["<start>"]+ clean_txt(text).split() + ["<end>"]
 
         if len(tokens) < self.max_len:
             pad_len = self.max_len - len(tokens)

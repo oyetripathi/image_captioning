@@ -4,7 +4,7 @@ from torch.nn.utils.rnn import pad_sequence
 def pad_captions(batch, pad_token_id):
     images = [x["image"] for x in batch]
     captions = [torch.tensor(x["input_ids"], dtype=torch.long) for x in batch]
-    masks = [torch.tensor(x["attention_mask"], dtype=torch.long) for x in batch]
+    masks = [torch.tensor(x["attention_mask"], dtype=torch.bool) for x in batch]
 
     row_ids = torch.tensor([x["id"] for x in batch], dtype=torch.long)
     images = torch.stack(images, dim=0)
