@@ -39,14 +39,12 @@ def run_training(config):
     LR = training_config.get("LR", 1e-3)
     WARMUP_STEPS = training_config.get("WARMUP_STEPS", 200)
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    NUM_WORKERS = training_config.get("NUM_WORKERS", 1)
 
     print(f"Using device: {DEVICE}")
 
-    train_df = pd.read_csv(config["DATASET"]["TRAIN"]["CSV_PATH"])
-    val_df = pd.read_csv(config["DATASET"]["VAL"]["CSV_PATH"])
-
     tokenizer = TokenizerClass(**config["TOKENIZER"].get("PARAMS", {}))
-    tokenizer.build_vocab(train_df, **config["TOKENIZER"].get("BUILD_VOCAB_PARAMS", {}))
+    tokenizer.build_vocab(**config["TOKENIZER"].get("BUILD_VOCAB_PARAMS", {}))
     pad_token_id = tokenizer.pad_token_id
 
     embeddings = None
@@ -72,21 +70,28 @@ def run_training(config):
     print(f"Total decoder parameters: {sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)}")
 
     train_dataset = DatasetClass(
-        train_df,
-        img_dir=config["DATASET"]["TRAIN"]["IMAGE_DIR"],
         tokenizer=tokenizer, img_transform=encoder.transforms,
+        wandb_run=wandb_run,
         **config["DATASET"]["TRAIN"].get("PARAMS", {})
     )
 
     val_dataset = DatasetClass(
-        val_df,
-        img_dir=config["DATASET"]["VAL"]["IMAGE_DIR"],
         tokenizer=tokenizer, img_transform=encoder.transforms,
+        wandb_run=wandb_run,
         **config["DATASET"]["VAL"].get("PARAMS", {})
     )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: pad_captions(x, pad_token_id))
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: pad_captions(x, pad_token_id))
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=BATCH_SIZE, 
+        num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
+        prefetch_factor=4, pin_memory=True
+    )
+    
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=BATCH_SIZE, 
+        num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
+        prefetch_factor=4, pin_memory=True
+    )
 
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id, label_smoothing=0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)

@@ -11,8 +11,8 @@ class WordTokenizer(BaseTokenizer):
         self.pad_token_id = None
         self.vocab_size = 0
     
-    def build_vocab(self, df, **kwargs):
-        self.vocab = build_word_vocab(df, **kwargs)
+    def build_vocab(self, df_path, **kwargs):
+        self.vocab = build_word_vocab(df_path, **kwargs)
         self.vocab_size = len(self.vocab)
         self.pad_token_id = self.vocab["<pad>"]
         self.id2word = {i: w for w,i in self.vocab.items()}

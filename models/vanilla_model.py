@@ -17,7 +17,7 @@ class VanillaCaptioningModel(nn.Module):
     
     def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None):
         total_loss = 0
-        num_batch = len(train_loder)
+        num_batch = 0
         self.to(device)
         self.train()
         for batch_idx, batch in enumerate(tqdm(train_loder)):
@@ -30,6 +30,7 @@ class VanillaCaptioningModel(nn.Module):
             optimizer.step()
             scheduler.step()
             total_loss += iter_loss.item()
+            num_batch += 1
             if wandb_run:
                 wandb_run.log({"Batch Loss": iter_loss.item()})
                 wandb_run.log({"Learning Rate": optimizer.param_groups[0]["lr"]})
@@ -37,7 +38,7 @@ class VanillaCaptioningModel(nn.Module):
         
     def eval_model(self, val_loader, loss_fn, device, wandb_run=None):
         total_loss = 0
-        num_batch = len(val_loader)
+        num_batch = 0
         self.to(device)
         self.eval()
         with torch.no_grad():
@@ -46,6 +47,7 @@ class VanillaCaptioningModel(nn.Module):
                 logits = self(images, captions[:, :-1], masks[:, :-1])
                 iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
                 total_loss += iter_loss.item()
+                num_batch += 1
                 if wandb_run:
                     wandb_run.log({"Validation Batch Loss": iter_loss.item()})
         return total_loss / num_batch

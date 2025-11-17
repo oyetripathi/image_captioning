@@ -5,11 +5,14 @@ from collections import Counter
 import pandas as pd
 
 def clean_txt(txt):
-        txt = txt.strip().lower()
-        txt = re.sub("[^a-z]+", " ", txt)
-        return " ".join([x.strip().lower() for x in txt.split()]) 
+    txt = txt.strip().lower()
+    txt = re.sub("'", "", txt)
+    txt = re.sub("[^a-z0-9.,]+", " ", txt)
+    txt = " ".join(txt.split())
+    return txt
 
-def build_word_vocab(df, text_column="caption", min_freq=2, max_vocab=None):
+def build_word_vocab(df_path, text_column="caption", min_freq=2, max_vocab=None):
+    df = pd.read_csv(df_path)
     all_words = []
     for text in df[text_column]:
         words = clean_txt(text).split()
