@@ -11,8 +11,9 @@ DATASET:
       annot_df_path: "data_files/flickr30k_images/val.csv"
       img_dir: "data_files/flickr30k_images/flickr30k_images"
   TEST:
-    annot_df_path: "data_files/flickr30k_images/test.csv"
-    img_dir: "data_files/flickr30k_images/flickr30k_images"
+    PARAMS:
+      annot_df_path: "data_files/flickr30k_images/test.csv"
+      img_dir: "data_files/flickr30k_images/flickr30k_images"
 TOKENIZER:
   MODULE: "tokenizers.word_tokenizer"
   CLASS: "WordTokenizer"
@@ -45,4 +46,4 @@ TRAINING:
   WARMUP_STEPS: 3000
 TESTING:
   BATCH_SIZE: 96
-LOG_WANDB: False
+LOG_WANDB: True

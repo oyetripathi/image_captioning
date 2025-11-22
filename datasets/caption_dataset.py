@@ -12,6 +12,15 @@ class FlickrDataset(Dataset):
     def __len__(self):
         return self.annot_df.shape[0]
     
+    def get_image_from_id(self,idx):
+        img_filename = self.annot_df.iloc[idx, 0]
+        img_path = f"{self.img_dir}/{img_filename}"
+        image = Image.open(img_path).convert("RGB")
+        return image
+
+    def get_images_from_list_id(self, indices):
+        return [self.get_image_from_id(idx) for idx in indices]
+    
     def __getitem__(self, idx):
         row_id = self.annot_df.index[idx]
         img_filename = self.annot_df.iloc[idx, 0]

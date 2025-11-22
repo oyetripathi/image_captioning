@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from models.attention import SoftAttention, MultiHeadAttention
+from models.attention import SoftAttention, MultiHeadAttention, TransformerFeedForward
 
 
 class DecoderLSTM(nn.Module):
@@ -69,21 +69,6 @@ class DecoderLSTMWithSoftAttention(nn.Module):
         h = torch.zeros((batch_size, hidden_dim)).to(device)
         c = torch.zeros((batch_size, hidden_dim)).to(device)
         return h,c
-
-class TransformerFeedForward(nn.Module):
-    def __init__(self, d_model, ff_dim):
-        super().__init__()
-        self.fc1 = nn.Linear(d_model, ff_dim)
-        self.fc2 = nn.Linear(ff_dim, d_model)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.1)
-    
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
 
 class DecoderTransformerLayer(nn.Module):
     def __init__(self, vocab_size, d_model, feature_dim, num_heads, pretrained_embeddings=None):

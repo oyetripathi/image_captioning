@@ -111,6 +111,13 @@ class LAIONPOPDataset(IterableDataset):
         if len(self.df) > self.samples_per_worker:
             self.df = self.df.sample(n=self.samples_per_worker).reset_index(drop=True)
         return
+    
+    def get_images_from_list_id(self, indices):
+        assert (not self.df is None)
+        urls_to_fetch = [self.df[self.df["id"].astype(int)==idx]["url"].to_list()[0] for idx in indices]
+        images = asyncio.run(self.async_manager.download_multiple_images(urls_to_fetch, log_fn=None))
+        return images
+
 
     def __iter__(self):
         processed = 0

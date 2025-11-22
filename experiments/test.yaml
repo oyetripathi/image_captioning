@@ -3,35 +3,49 @@ DATASET:
   MODULE: "datasets.caption_dataset"
   CLASS: "FlickrDataset"
   TRAIN:
-    CSV_PATH: "data_files/flickr8k/train.csv"
-    IMAGE_DIR: "data_files/flickr8k/Images"
+    PARAMS:
+      annot_df_path: "data_files/flickr30k_images/train.csv"
+      img_dir: "data_files/flickr30k_images/flickr30k_images"
   VAL:
-    CSV_PATH: "data_files/flickr8k/val.csv"
-    IMAGE_DIR: "data_files/flickr8k/Images"
+    PARAMS:
+      annot_df_path: "data_files/flickr30k_images/val.csv"
+      img_dir: "data_files/flickr30k_images/flickr30k_images"
   TEST:
-    CSV_PATH: "data_files/flickr8k/test.csv"
-    IMAGE_DIR: "data_files/flickr8k/Images"
+    PARAMS:
+      annot_df_path: "data_files/flickr30k_images/test.csv"
+      img_dir: "data_files/flickr30k_images/flickr30k_images"
 TOKENIZER:
   MODULE: "tokenizers.word_tokenizer"
   CLASS: "WordTokenizer"
+  BUILD_VOCAB_PARAMS:
+    df_path: "data_files/flickr30k_images/train.csv"
+    min_freq: 2
 ENCODER:
   MODULE: "models.encoders"
-  CLASS: "ResNet101Encoder"
-  PRETRAINED: True
+  CLASS: "ResNet50Encoder"
   PARAMS:
     fine_tune: True
+    # patch_size: 16
+    # d_model: 512
+    # num_heads: 8
+    # num_layers: 4
 DECODER:
   MODULE: "models.decoders"
-  CLASS: "DecoderLSTM"
+  CLASS: "DecoderTransformer"
   PARAMS:
     feature_dim: 2048
-    embed_dim: 512
+    embed_dim: 128
+    d_model: 512
+    num_heads: 8
+    num_layers: 4
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
 TRAINING:
-  EPOCHS: 3
-  BATCH_SIZE: 16
-  LR: 0.001
+  EPOCHS: 5
+  BATCH_SIZE: 40
+  LR: 0.0005
+  WARMUP_STEPS: 3000
 TESTING:
-  BATCH_SIZE: 16
+  BATCH_SIZE: 96
+LOG_WANDB: True

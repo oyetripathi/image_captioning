@@ -1,9 +1,8 @@
-2. make changes to trianing code:
-    - Log BLEU score somehow
-    - early stopping and best model logging
-3. integrate image augmentation
-4. Code transformer encoder
-
-
+4. integrate image augmentation
 
 -- save some pictures for github
+
+-- load pictures from relaion against their caption (processed and unprocessed) as in dataloader
+-- perform augmentation against them
+-- post results on Flickr Dataset with test experiment (BLEU, CiDER)
+-- buy cluster from vast.ai

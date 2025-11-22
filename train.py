@@ -9,7 +9,7 @@ from utils.parse_import import run_imports
 from utils.load_embeddings import load_pretrained_embeddings
 from utils.schedulers import get_inverse_sqrt_scheduler
 from torchvision import transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from datasets.collate_functions import pad_captions
 
 
@@ -84,7 +84,7 @@ def run_training(config):
     train_dataloader = DataLoader(
         train_dataset, batch_size=BATCH_SIZE, 
         num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
-        prefetch_factor=4, pin_memory=True
+        prefetch_factor=4, pin_memory=True, shuffle=(True if not isinstance(train_dataset, IterableDataset) else None)
     )
     
     val_dataloader = DataLoader(
@@ -97,11 +97,18 @@ def run_training(config):
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = get_inverse_sqrt_scheduler(optimizer, warmup_steps=WARMUP_STEPS)
 
+    best_val_loss = float("inf")
     for epoch in range(EPOCHS):
         print(f"Running Epoch {epoch+1}/{EPOCHS}")
         train_loss = model.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)
         val_loss = model.eval_model(val_dataloader, loss_fn, DEVICE, wandb_run)
+        model.log_sample_captions(train_dataloader, train_dataset, tokenizer, DEVICE, wandb_run, epoch, num_samples=10)
         print(f"Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), f"{EXPERIMENT_PATH}/best_model.pth")
+            print("Best model saved.")
 
     torch.save(model.state_dict(), f"{EXPERIMENT_PATH}/model.pth")
     tokenizer.save(f"{EXPERIMENT_PATH}/tokenizer.json")

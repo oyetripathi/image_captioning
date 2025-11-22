@@ -5,6 +5,7 @@ DATASET:
   TRAIN:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/train"
+      urls_per_batch: 8
   VAL:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/val"
@@ -18,28 +19,30 @@ TOKENIZER:
     vocab_path: "data_files/laion_pop/relaion-pop/wordpiece_vocab_15k_top3.json"
 ENCODER:
   MODULE: "models.encoders"
-  CLASS: "ResNet50Encoder"
-  PRETRAINED: True
+  CLASS: "EncoderTransformer"
   PARAMS:
-    fine_tune: True
+    patch_size: 16
+    d_model: 512
+    num_heads: 8
+    num_layers: 8
 DECODER:
   MODULE: "models.decoders"
   CLASS: "DecoderTransformer"
   PARAMS:
-    feature_dim: 2048
-    embed_dim: 100
-    d_model: 256
-    num_heads: 4
-    num_layers: 6
+    feature_dim: 512
+    embed_dim: 128
+    d_model: 512
+    num_heads: 8
+    num_layers: 8
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
 TRAINING:
-  EPOCHS: 5
-  BATCH_SIZE: 16
+  EPOCHS: 4
+  BATCH_SIZE: 24
   LR: 0.0005
   WARMUP_STEPS: 3000
-  NUM_WORKERS: 8
+  NUM_WORKERS: 8  
 TESTING:
-  BATCH_SIZE: 16
+  BATCH_SIZE: 24
 LOG_WANDB: True

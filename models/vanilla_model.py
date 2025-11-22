@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from metrics.BLEU import compute_bleu
+import wandb
 from tqdm import tqdm
 
 
@@ -52,6 +53,21 @@ class VanillaCaptioningModel(nn.Module):
                     wandb_run.log({"Validation Batch Loss": iter_loss.item()})
         return total_loss / num_batch
 
+    def log_sample_captions(self, dataloader, dataset, tokenizer, device, wandb_run, meta="", num_samples=5):
+        if wandb_run is None:
+            return
+        results = self.generate_caption(dataloader, tokenizer, device, beam_size=3, num_samples=num_samples)
+        images = dataset.get_images_from_list_id(results["id"])
+        my_table = wandb.Table(columns=["image", "generated_caption", "true_caption"])
+        for i in range(len(results["id"])):
+            my_table.add_data(
+                wandb.Image(images[i]),
+                results["generated_caption"][i],
+                results["true_caption"][i],
+            )
+        wandb_run.log({f"Sample Captions {meta}": my_table})
+        return
+    
     @staticmethod
     def decode_caption(token_ids, tokenizer):
         eos_token = tokenizer.vocab.get("<end>")
@@ -109,19 +125,26 @@ class VanillaCaptioningModel(nn.Module):
         best_sequences = sequences[torch.arange(batch_size), best_beam_idx, :].cpu().tolist()
         return best_sequences
 
-    def generate_caption(self, dataloader, tokenizer, device, max_len=20, beam_size=1): 
+    def generate_caption(self, dataloader, tokenizer, device, beam_size=1, num_samples=None): 
         self.to(device)
         self.eval()
+        true_captions = []
         captions = []
         row_ids = []
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(dataloader)):
                 images = batch["images"].to(device)
                 img_encodings = self.encoder(images)
-                best_ids_list = self._beam_search_batch(img_encodings, tokenizer, device, beam_size=beam_size, max_len=max_len)
+                best_ids_list = self._beam_search_batch(img_encodings, tokenizer, device, beam_size=beam_size, max_len=tokenizer.max_len)
                 captions.extend([self.decode_caption(ids, tokenizer) for ids in best_ids_list])
+                true_captions.extend([self.decode_caption(ids, tokenizer) for ids in batch["captions"].cpu().numpy().tolist()])
                 row_ids.extend(batch["id"].cpu().numpy().tolist())
-        return {
-            "id": row_ids,
-            "generated_caption": captions,
+                if num_samples is not None and len(captions) >= num_samples:
+                    break
+        
+        ret = {
+            "id": row_ids[:num_samples] if num_samples is not None else row_ids,
+            "generated_caption": captions[:num_samples] if num_samples is not None else captions,
+            "true_caption": true_captions[:num_samples] if num_samples is not None else true_captions,
         }
+        return ret

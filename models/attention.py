@@ -71,3 +71,18 @@ class MultiHeadAttention(nn.Module):
         attn_output, attn_weights = self.scaled_dot_product_attention(query, key, value, mask)
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.model_dim)
         return self.out_linear(attn_output), attn_weights
+
+class TransformerFeedForward(nn.Module):
+    def __init__(self, d_model, ff_dim):
+        super().__init__()
+        self.fc1 = nn.Linear(d_model, ff_dim)
+        self.fc2 = nn.Linear(ff_dim, d_model)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.1)
+    
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        return out

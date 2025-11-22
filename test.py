@@ -1,11 +1,40 @@
 import sys
 import yaml
 import torch
+import json
 import pandas as pd
 from torchvision import transforms
 from utils.parse_import import run_imports
+from utils.build_vocab import clean_txt
+from metrics.BLEU import compute_bleu
+from metrics.CIDEr import compute_cider
+from utils.visualize import visualize_predictions
 from datasets.collate_functions import pad_captions
 
+def run_eval(df, dataset, EXPERIMENT_PATH):
+    df = df.copy()
+    sampled_df = df.sample(n = 6)
+    visualize_predictions(
+        savepath=f"{EXPERIMENT_PATH}/viz.png",
+        images=dataset.get_images_from_list_id(sampled_df["id"].to_list()),
+        true_captions=[sampled_df.loc[i]['true_caption'] for i in sampled_df.index],
+        pred_captions=[sampled_df.loc[i]['generated_caption'] for i in sampled_df.index],
+        n_rows=2,
+        n_cols=3
+    )
+    metrics = {}
+    df["true_caption"] = df["true_caption"].apply(clean_txt)
+    df["generated_caption"] = df["generated_caption"].apply(clean_txt)
+    
+    all_preds = df["generated_caption"].unique()
+    all_refs = [df[df["generated_caption"]==pred]["true_caption"].to_list() for pred in all_preds]
+    
+    metrics["BLUE@4"] = compute_bleu(all_refs, all_preds, n=4)
+    metrics["CIDEr"] = compute_cider(all_preds, all_refs, max_n=5)
+    
+    with open(f"{EXPERIMENT_PATH}/metrics.json", "w") as f:
+        json.dump(metrics, f)
+    return
 
 def run_test(config):
     EXPERIMENT_NAME = config.get("EXPERIMENT_NAME")
@@ -22,9 +51,7 @@ def run_test(config):
 
     BATCH_SIZE = test_config.get("BATCH_SIZE", 32)
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-    test_df = pd.read_csv(config["DATASET"]["TEST"]["CSV_PATH"])
-    test_df_v1 = test_df.drop_duplicates(["image"]).reset_index(drop=True)
+    NUM_WORKERS = test_config.get("NUM_WORKERS", 1)
 
     tokenizer = TokenizerClass()
     tokenizer.load(f"{EXPERIMENT_PATH}/tokenizer.json")
@@ -33,23 +60,24 @@ def run_test(config):
     encoder = EncoderClass(**config["ENCODER"].get("PARAMS", {}))
     decoder = DecoderClass(vocab_size=tokenizer.vocab_size, **config["DECODER"].get("PARAMS", {}))
     model = ModelClass(encoder, decoder)
-    model.load_state_dict(torch.load(f"{EXPERIMENT_PATH}/model.pth", weights_only=True))
-
+    model.load_state_dict(torch.load(f"{EXPERIMENT_PATH}/best_model.pth", weights_only=True))
     dataset = DatasetClass(
-        test_df_v1,
-        img_dir=config["DATASET"]["TEST"]["IMAGE_DIR"],
         tokenizer=tokenizer, img_transform=encoder.transforms,
         **config["DATASET"]["TEST"].get("PARAMS", {})
     )
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: pad_captions(x, pad_token_id))
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
+        prefetch_factor=4, pin_memory=True,
+        collate_fn=lambda x: pad_captions(x, pad_token_id),
+        shuffle=(True if not isinstance(dataset, torch.utils.data.IterableDataset) else None)
+    )
 
-    outputs = model.generate_caption(dataloader, tokenizer, DEVICE, max_len=20, beam_size=5)
-    out_df = pd.DataFrame(outputs).set_index("id")
-    test_df_v1 = pd.merge(test_df_v1.drop(columns=["caption"]), out_df, left_index=True, right_index=True, how="left")
-    test_df = test_df.merge(test_df_v1, on="image", how="left")
+    outputs = model.generate_caption(dataloader, tokenizer, DEVICE, beam_size=5)
+    test_df = pd.DataFrame(outputs)
     test_df.to_csv(f"{EXPERIMENT_PATH}/test_results.csv", index=False)
     print(f"Results saved at: {EXPERIMENT_PATH}/test_results.csv")
+    run_eval(test_df, dataset, EXPERIMENT_PATH)
     return
 
 
