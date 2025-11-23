@@ -23,27 +23,28 @@ TOKENIZER:
 ENCODER:
   MODULE: "models.encoders"
   CLASS: "ResNet50Encoder"
-  PRETRAINED: True
   PARAMS:
     fine_tune: True
 DECODER:
   MODULE: "models.decoders"
   CLASS: "DecoderTransformer"
-  PRETRAINED_EMBEDDINGS_PATH: "data_files/glove.6B.100d.txt"    
   PARAMS:
     feature_dim: 2048
-    embed_dim: 100
-    d_model: 256
-    num_heads: 4
-    num_layers: 6
+    embed_dim: 128
+    d_model: 512
+    num_heads: 8
+    num_layers: 4
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
 TRAINING:
   EPOCHS: 5
-  BATCH_SIZE: 32
+  BATCH_SIZE: 40
   LR: 0.0005
   WARMUP_STEPS: 3000
+  AUGMENTATION:
+    FLAG: True
+    START_EPOCH: 0
 TESTING:
   BATCH_SIZE: 96
 LOG_WANDB: True

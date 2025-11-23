@@ -7,7 +7,8 @@ import wandb
 import pandas as pd
 from utils.parse_import import run_imports
 from utils.load_embeddings import load_pretrained_embeddings
-from utils.schedulers import get_inverse_sqrt_scheduler
+from utils.schedulers import get_inverse_sqrt_scheduler, exponential_ramp_up_scheduler
+from utils.augmentations import get_augmentation_transforms
 from torchvision import transforms
 from torch.utils.data import DataLoader, IterableDataset
 from datasets.collate_functions import pad_captions
@@ -41,6 +42,10 @@ def run_training(config):
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     NUM_WORKERS = training_config.get("NUM_WORKERS", 1)
 
+    aug_config = training_config.get("AUGMENTATION", {})
+    ENABLE_AUGMENTATION = aug_config.get("FLAG", False)
+    AUGMENTATION_START_EPOCH = aug_config.get("START_EPOCH", {})
+
     print(f"Using device: {DEVICE}")
 
     tokenizer = TokenizerClass(**config["TOKENIZER"].get("PARAMS", {}))
@@ -69,30 +74,6 @@ def run_training(config):
     print(f"Total encoder parameters: {sum(p.numel() for p in model.encoder.parameters() if p.requires_grad)}")
     print(f"Total decoder parameters: {sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)}")
 
-    train_dataset = DatasetClass(
-        tokenizer=tokenizer, img_transform=encoder.transforms,
-        wandb_run=wandb_run,
-        **config["DATASET"]["TRAIN"].get("PARAMS", {})
-    )
-
-    val_dataset = DatasetClass(
-        tokenizer=tokenizer, img_transform=encoder.transforms,
-        wandb_run=wandb_run,
-        **config["DATASET"]["VAL"].get("PARAMS", {})
-    )
-
-    train_dataloader = DataLoader(
-        train_dataset, batch_size=BATCH_SIZE, 
-        num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
-        prefetch_factor=4, pin_memory=True, shuffle=(True if not isinstance(train_dataset, IterableDataset) else None)
-    )
-    
-    val_dataloader = DataLoader(
-        val_dataset, batch_size=BATCH_SIZE, 
-        num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
-        prefetch_factor=4, pin_memory=True
-    )
-
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id, label_smoothing=0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = get_inverse_sqrt_scheduler(optimizer, warmup_steps=WARMUP_STEPS)
@@ -100,6 +81,34 @@ def run_training(config):
     best_val_loss = float("inf")
     for epoch in range(EPOCHS):
         print(f"Running Epoch {epoch+1}/{EPOCHS}")
+
+        aug_level = exponential_ramp_up_scheduler(epoch+1, AUGMENTATION_START_EPOCH, EPOCHS, curvature=1)
+        aug_transforms = get_augmentation_transforms(aug_level)
+
+        train_dataset = DatasetClass(
+            tokenizer=tokenizer, img_transform=encoder.transforms,
+            wandb_run=wandb_run, augmentations=aug_transforms,
+            **config["DATASET"]["TRAIN"].get("PARAMS", {})
+        )
+
+        val_dataset = DatasetClass(
+            tokenizer=tokenizer, img_transform=encoder.transforms,
+            wandb_run=wandb_run,
+            **config["DATASET"]["VAL"].get("PARAMS", {})
+        )
+
+        train_dataloader = DataLoader(
+            train_dataset, batch_size=BATCH_SIZE, 
+            num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
+            prefetch_factor=4, pin_memory=True, shuffle=(True if not isinstance(train_dataset, IterableDataset) else None)
+        )
+        
+        val_dataloader = DataLoader(
+            val_dataset, batch_size=BATCH_SIZE, 
+            num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
+            prefetch_factor=4, pin_memory=True
+        )
+
         train_loss = model.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)
         val_loss = model.eval_model(val_dataloader, loss_fn, DEVICE, wandb_run)
         model.log_sample_captions(train_dataloader, train_dataset, tokenizer, DEVICE, wandb_run, epoch, num_samples=10)

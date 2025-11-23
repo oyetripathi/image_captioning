@@ -4,6 +4,7 @@ import time
 import asyncio
 import aiohttp
 import pandas as pd
+import numpy as np
 from PIL import Image
 import wandb
 from io import BytesIO
@@ -79,7 +80,7 @@ class WBLogger:
         return
 
 class LAIONPOPDataset(IterableDataset):
-    def __init__(self, pq_path, tokenizer, urls_per_batch=16, samples_per_worker=5000, concurrency=10, img_transform=None, y_transform=None, wandb_run=None):
+    def __init__(self, pq_path, tokenizer, urls_per_batch=16, samples_per_worker=5000, concurrency=10, img_transform=None, y_transform=None, augmentations=None, wandb_run=None):
         self.pq_path = pq_path
         self.all_pq_files = [filename for filename in os.listdir(self.pq_path) if filename.endswith(".parquet")]
         self.df = None
@@ -88,8 +89,11 @@ class LAIONPOPDataset(IterableDataset):
         self.samples_per_worker = samples_per_worker
         self.img_transform = img_transform
         self.y_transform = y_transform
+        self.augmentations = augmentations
         self.async_manager = AsyncManager(concurrency=concurrency, timeout=4, max_retries=2)
         self.wblogger = WBLogger(wandb_run)
+        self.worker_num = None
+        self.choose_pq()
     
     @staticmethod
     def validate_batch(image, caption):
@@ -101,8 +105,17 @@ class LAIONPOPDataset(IterableDataset):
             return False
         return True
 
-    def choose_pq(self, files):
-        chosen_pq  = random.choice(files)
+    def choose_pq(self):
+        worker_info = get_worker_info()
+        if worker_info is None:
+            self.worker_num = -1
+            worker_files = self.all_pq_files
+        else:
+            k = len(self.all_pq_files) // worker_info.num_workers
+            self.worker_num = worker_info.id
+            worker_files = self.all_pq_files[(worker_num)*k:(worker_num+1)*k]
+        
+        chosen_pq  = random.choice(worker_files)
         self.df = pd.read_parquet(
             f"{self.pq_path}/{chosen_pq}"
         ).rename(
@@ -124,20 +137,11 @@ class LAIONPOPDataset(IterableDataset):
         skipped = 0
         start_time = time.time()
         last_hearbeat = time.time()
-        worker_info = get_worker_info()
-        if worker_info is None:
-            worker_num = -1
-            worker_files = self.all_pq_files
-        else:
-            k = len(self.all_pq_files) // worker_info.num_workers
-            worker_num = worker_info.id
-            worker_files = self.all_pq_files[(worker_num)*k:(worker_num+1)*k]
 
-        self.choose_pq(worker_files)
         for i in self.df.index[::self.urls_per_batch]:
             cur_time = time.time()
             if cur_time - last_hearbeat > 5:
-                self.wblogger.log({"dataset/worker_heartbeat": worker_num, "dataset/worker_time_elapsed": cur_time - start_time})
+                self.wblogger.log({"dataset/worker_heartbeat": self.worker_num, "dataset/worker_time_elapsed": cur_time - start_time})
                 last_hearbeat = cur_time
             ret = []
             batch = self.df[i:i+self.urls_per_batch]
@@ -167,6 +171,8 @@ class LAIONPOPDataset(IterableDataset):
                             "dataset/processing_rate_hist": processed / elapsed,
                         }
                     )
+                if self.augmentations:
+                    image = Image.fromarray(self.augmentations(image=np.array(image))["image"])
                 if self.img_transform:
                     image = self.img_transform(image)
                 token_ids, attention_mask = self.tokenizer.encode(caption)
