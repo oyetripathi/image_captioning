@@ -93,7 +93,6 @@ class LAIONPOPDataset(IterableDataset):
         self.async_manager = AsyncManager(concurrency=concurrency, timeout=4, max_retries=2)
         self.wblogger = WBLogger(wandb_run)
         self.worker_num = None
-        self.choose_pq()
     
     @staticmethod
     def validate_batch(image, caption):
@@ -113,7 +112,7 @@ class LAIONPOPDataset(IterableDataset):
         else:
             k = len(self.all_pq_files) // worker_info.num_workers
             self.worker_num = worker_info.id
-            worker_files = self.all_pq_files[(worker_num)*k:(worker_num+1)*k]
+            worker_files = self.all_pq_files[(self.worker_num)*k:(self.worker_num+1)*k]
         
         chosen_pq  = random.choice(worker_files)
         self.df = pd.read_parquet(
@@ -125,9 +124,8 @@ class LAIONPOPDataset(IterableDataset):
             self.df = self.df.sample(n=self.samples_per_worker).reset_index(drop=True)
         return
     
-    def get_images_from_list_id(self, indices):
-        assert (not self.df is None)
-        urls_to_fetch = [self.df[self.df["id"].astype(int)==idx]["url"].to_list()[0] for idx in indices]
+    def get_images_from_metadata(self, metadata):
+        urls_to_fetch = [m["url"] for m in metadata]
         images = asyncio.run(self.async_manager.download_multiple_images(urls_to_fetch, log_fn=None))
         return images
 
@@ -138,6 +136,7 @@ class LAIONPOPDataset(IterableDataset):
         start_time = time.time()
         last_hearbeat = time.time()
 
+        self.choose_pq()
         for i in self.df.index[::self.urls_per_batch]:
             cur_time = time.time()
             if cur_time - last_hearbeat > 5:
@@ -149,7 +148,7 @@ class LAIONPOPDataset(IterableDataset):
             captions = batch["caption"].to_list()
             ids = batch["id"].to_list()
             images = asyncio.run(self.async_manager.download_multiple_images(urls, log_fn=self.wblogger.log))
-            for row_id, image, caption in zip(ids, images, captions):
+            for row_id, image, caption, url in zip(ids, images, captions, urls):
                 if not self.validate_batch(image, caption):
                     skipped += 1
                     self.wblogger.log({"dataset/invalid_samples_skipped": skipped})
@@ -180,5 +179,8 @@ class LAIONPOPDataset(IterableDataset):
                     "id": int(row_id),
                     "image": image,
                     "input_ids": token_ids,
-                    "attention_mask": attention_mask
+                    "attention_mask": attention_mask,
+                    "metadata": {
+                        "url": url
+                    }
                 }

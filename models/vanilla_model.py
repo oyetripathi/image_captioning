@@ -57,9 +57,10 @@ class VanillaCaptioningModel(nn.Module):
         if wandb_run is None:
             return
         results = self.generate_caption(dataloader, tokenizer, device, beam_size=3, num_samples=num_samples)
-        images = dataset.get_images_from_list_id(results["id"])
+        images = dataset.get_images_from_metadata(results["metadata"])
         my_table = wandb.Table(columns=["image", "generated_caption", "true_caption"])
         for i in range(len(results["id"])):
+            if images[i] is None: continue
             my_table.add_data(
                 wandb.Image(images[i]),
                 results["generated_caption"][i],
@@ -131,6 +132,7 @@ class VanillaCaptioningModel(nn.Module):
         true_captions = []
         captions = []
         row_ids = []
+        metadata = []
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(dataloader)):
                 images = batch["images"].to(device)
@@ -139,6 +141,7 @@ class VanillaCaptioningModel(nn.Module):
                 captions.extend([self.decode_caption(ids, tokenizer) for ids in best_ids_list])
                 true_captions.extend([self.decode_caption(ids, tokenizer) for ids in batch["captions"].cpu().numpy().tolist()])
                 row_ids.extend(batch["id"].cpu().numpy().tolist())
+                metadata.extend(batch["metadata"])
                 if num_samples is not None and len(captions) >= num_samples:
                     break
         
@@ -146,5 +149,6 @@ class VanillaCaptioningModel(nn.Module):
             "id": row_ids[:num_samples] if num_samples is not None else row_ids,
             "generated_caption": captions[:num_samples] if num_samples is not None else captions,
             "true_caption": true_captions[:num_samples] if num_samples is not None else true_captions,
+            "metadata": metadata[:num_samples] if num_samples is not None else metadata
         }
         return ret

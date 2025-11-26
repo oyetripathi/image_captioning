@@ -16,20 +16,17 @@ TOKENIZER:
   MODULE: "tokenizers.wordpiece_tokenizer"
   CLASS: "WordPieceTokenizer"
   BUILD_VOCAB_PARAMS:
-    vocab_path: "data_files/laion_pop/relaion-pop/wordpiece_vocab_15k_top3.json"
+    vocab_path: "data_files/laion_pop/relaion-pop/bert_base_uncased_vocab_15k.json"
 ENCODER:
   MODULE: "models.encoders"
-  CLASS: "EncoderTransformer"
+  CLASS: "ResNet101Encoder"
   PARAMS:
-    patch_size: 16
-    d_model: 512
-    num_heads: 8
-    num_layers: 8
+    fine_tune: True
 DECODER:
   MODULE: "models.decoders"
   CLASS: "DecoderTransformer"
   PARAMS:
-    feature_dim: 512
+    feature_dim: 2048
     embed_dim: 128
     d_model: 512
     num_heads: 8
@@ -42,7 +39,10 @@ TRAINING:
   BATCH_SIZE: 24
   LR: 0.0005
   WARMUP_STEPS: 3000
-  NUM_WORKERS: 8  
+  NUM_WORKERS: 8
+  AUGMENTATION:
+    FLAG: True
+    START_EPOCH: 0
 TESTING:
   BATCH_SIZE: 24
 LOG_WANDB: True

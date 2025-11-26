@@ -20,8 +20,8 @@ class FlickrDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         return image
 
-    def get_images_from_list_id(self, indices):
-        return [self.get_image_from_id(idx) for idx in indices]
+    def get_images_from_metadata(self, metadata):
+        return [self.get_image_from_id(m["index"]) for m in metadata]
     
     def __getitem__(self, idx):
         row_id = self.annot_df.index[idx]
@@ -41,5 +41,6 @@ class FlickrDataset(Dataset):
             "image": image,
             "caption_text": label,
             "input_ids": token_ids,
-            "attention_mask": attention_mask
+            "attention_mask": attention_mask,
+            "metadata": {"index": row_id}
         }

@@ -11,9 +11,11 @@ def pad_captions(batch, pad_token_id):
     captions = pad_sequence(captions, batch_first=True, padding_value=pad_token_id)
     masks = pad_sequence(masks, batch_first=True, padding_value=0)
 
+    metadata = [x["metadata"] for x in batch]
     return {
         "id": row_ids,  
         "images": images,
         "captions": captions,
-        "masks": masks
+        "masks": masks,
+        "metadata": metadata
     }

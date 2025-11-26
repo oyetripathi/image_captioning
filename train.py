@@ -44,7 +44,7 @@ def run_training(config):
 
     aug_config = training_config.get("AUGMENTATION", {})
     ENABLE_AUGMENTATION = aug_config.get("FLAG", False)
-    AUGMENTATION_START_EPOCH = aug_config.get("START_EPOCH", {})
+    AUGMENTATION_START_EPOCH = aug_config.get("START_EPOCH", 0)
 
     print(f"Using device: {DEVICE}")
 
@@ -111,7 +111,7 @@ def run_training(config):
 
         train_loss = model.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)
         val_loss = model.eval_model(val_dataloader, loss_fn, DEVICE, wandb_run)
-        model.log_sample_captions(train_dataloader, train_dataset, tokenizer, DEVICE, wandb_run, epoch, num_samples=10)
+        model.log_sample_captions(train_dataloader, tokenizer, DEVICE, wandb_run, epoch, num_samples=10)
         print(f"Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
 
         if val_loss < best_val_loss:
