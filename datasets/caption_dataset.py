@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 
 class FlickrDataset(Dataset):
-    def __init__(self, annot_df_path, img_dir, tokenizer, img_transform=None, y_transform=None, augmentations=None, wandb_run=None):
+    def __init__(self, annot_df_path, img_dir, tokenizer, rank, world_size, img_transform=None, y_transform=None, augmentations=None, wandb_run=None):
         self.annot_df = pd.read_csv(annot_df_path)
         self.img_dir = img_dir
         self.tokenizer = tokenizer

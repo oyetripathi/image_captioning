@@ -19,7 +19,6 @@ class VanillaCaptioningModel(nn.Module):
     def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None):
         total_loss = 0
         num_batch = 0
-        self.to(device)
         self.train()
         for batch_idx, batch in enumerate(tqdm(train_loder)):
             optimizer.zero_grad()
@@ -40,7 +39,6 @@ class VanillaCaptioningModel(nn.Module):
     def eval_model(self, val_loader, loss_fn, device, wandb_run=None):
         total_loss = 0
         num_batch = 0
-        self.to(device)
         self.eval()
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader)):
@@ -127,7 +125,6 @@ class VanillaCaptioningModel(nn.Module):
         return best_sequences
 
     def generate_caption(self, dataloader, tokenizer, device, beam_size=1, num_samples=None): 
-        self.to(device)
         self.eval()
         true_captions = []
         captions = []

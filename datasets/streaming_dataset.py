@@ -80,7 +80,7 @@ class WBLogger:
         return
 
 class LAIONPOPDataset(IterableDataset):
-    def __init__(self, pq_path, tokenizer, urls_per_batch=16, samples_per_worker=5000, concurrency=10, img_transform=None, y_transform=None, augmentations=None, wandb_run=None):
+    def __init__(self, pq_path, tokenizer, rank, world_size, urls_per_batch=16, samples_per_worker=5000, concurrency=10, img_transform=None, y_transform=None, augmentations=None, wandb_run=None):
         self.pq_path = pq_path
         self.all_pq_files = [filename for filename in os.listdir(self.pq_path) if filename.endswith(".parquet")]
         self.df = None
@@ -93,6 +93,8 @@ class LAIONPOPDataset(IterableDataset):
         self.async_manager = AsyncManager(concurrency=concurrency, timeout=4, max_retries=2)
         self.wblogger = WBLogger(wandb_run)
         self.worker_num = None
+        self.rank = rank
+        self.world_size = world_size
     
     @staticmethod
     def validate_batch(image, caption):
@@ -106,13 +108,19 @@ class LAIONPOPDataset(IterableDataset):
 
     def choose_pq(self):
         worker_info = get_worker_info()
+        total_files = len(self.all_pq_files)
+        files_per_rank = total_files // self.world_size
+        rank_start = self.rank*files_per_rank
+        rank_end = (self.rank+1)*files_per_rank
+        rank_files = self.all_pq_files[rank_start: rank_end]
+
         if worker_info is None:
             self.worker_num = -1
-            worker_files = self.all_pq_files
+            worker_files = rank_files
         else:
             k = len(self.all_pq_files) // worker_info.num_workers
             self.worker_num = worker_info.id
-            worker_files = self.all_pq_files[(self.worker_num)*k:(self.worker_num+1)*k]
+            worker_files = rank_files[(self.worker_num)*k:(self.worker_num+1)*k]
         
         chosen_pq  = random.choice(worker_files)
         self.df = pd.read_parquet(

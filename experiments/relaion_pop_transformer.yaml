@@ -5,7 +5,7 @@ DATASET:
   TRAIN:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/train"
-      urls_per_batch: 8
+      urls_per_batch: 3
   VAL:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/val"
@@ -19,7 +19,7 @@ TOKENIZER:
     vocab_path: "data_files/laion_pop/relaion-pop/bert_base_uncased_vocab_15k.json"
 ENCODER:
   MODULE: "models.encoders"
-  CLASS: "ResNet101Encoder"
+  CLASS: "ResNet50Encoder"
   PARAMS:
     fine_tune: True
 DECODER:
@@ -36,10 +36,10 @@ MODEL:
   CLASS: "VanillaCaptioningModel"
 TRAINING:
   EPOCHS: 4
-  BATCH_SIZE: 24
+  BATCH_SIZE: 4
   LR: 0.0005
   WARMUP_STEPS: 3000
-  NUM_WORKERS: 8
+  NUM_WORKERS: 2
   AUGMENTATION:
     FLAG: True
     START_EPOCH: 0
