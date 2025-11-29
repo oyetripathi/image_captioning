@@ -118,9 +118,12 @@ class LAIONPOPDataset(IterableDataset):
             self.worker_num = -1
             worker_files = rank_files
         else:
-            k = len(self.all_pq_files) // worker_info.num_workers
+            k = len(rank_files) // worker_info.num_workers
             self.worker_num = worker_info.id
-            worker_files = rank_files[(self.worker_num)*k:(self.worker_num+1)*k]
+            if k > 0:
+                worker_files = rank_files[(self.worker_num)*k:(self.worker_num+1)*k]
+            else:
+                worker_files = rank_files
         
         chosen_pq  = random.choice(worker_files)
         self.df = pd.read_parquet(

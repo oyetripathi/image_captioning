@@ -16,29 +16,29 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 def ddp_setup():
-    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
-        rank = int(os.environ(["RANK"]))
-        world_size = int(os.environ(["WORLD_SIZE"]))
-    else:
-        rank = 0
-        world_size = 1
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
+    rank = int(os.environ.get("RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+
+    if not "MASTER_ADDR" in os.environ:
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = "12355"
+
     dist.init_process_group(
         backend = "nccl" if torch.cuda.is_available() else "gloo",
         rank = rank,
-        world_size = world_size
+        world_size = world_size,
+        device_id = torch.device(f"cuda:{local_rank}") if torch.cuda.is_available() else None
     )
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    if torch.cuda.is_available():
-        torch.cuda.set_device(local_rank)
+
+    dist.barrier()
     return rank, local_rank, world_size
 
 
 def run_training(config, rank, local_rank, world_size):
     EXPERIMENT_NAME = config.get("EXPERIMENT_NAME")
     EXPERIMENT_PATH = f"saved_models/{EXPERIMENT_NAME}"
-    if not os.path.exists(EXPERIMENT_PATH):
+    if not os.path.exists(EXPERIMENT_PATH) and rank==0:
         os.makedirs(EXPERIMENT_PATH)
 
     if not config.get("LOG_WANDB", False) or rank!=0:
@@ -67,6 +67,8 @@ def run_training(config, rank, local_rank, world_size):
     ENABLE_AUGMENTATION = aug_config.get("FLAG", False)
     AUGMENTATION_START_EPOCH = aug_config.get("START_EPOCH", 0)
 
+    CHECKPOINT_NAME = config.get("CHECKPOINT_NAME", None)
+
     print(f"Using device: {DEVICE}")
 
     tokenizer = TokenizerClass(**config["TOKENIZER"].get("PARAMS", {}))
@@ -89,6 +91,9 @@ def run_training(config, rank, local_rank, world_size):
     )
 
     model = ModelClass(encoder, decoder)
+    if CHECKPOINT_NAME is not None:
+        checkpoint_wts = torch.load(f"{EXPERIMENT_PATH}/checkpoints/{CHECKPOINT_NAME}", weights_only=True)
+        model.load_state_dict(checkpoint_wts)
 
     if not (wandb_run is None):
         wandb_run.watch(model, log="all", log_freq=1000)

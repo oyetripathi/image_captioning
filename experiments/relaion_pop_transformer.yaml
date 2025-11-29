@@ -1,4 +1,4 @@
-EXPERIMENT_NAME: "transformer"
+EXPERIMENT_NAME: "relaion_pop_transformer"
 DATASET:
   MODULE: "datasets.streaming_dataset"
   CLASS: "LAIONPOPDataset"
@@ -34,6 +34,7 @@ DECODER:
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
+# CHECKPOINT_NAME: "best_model.pth"
 TRAINING:
   EPOCHS: 4
   BATCH_SIZE: 4
