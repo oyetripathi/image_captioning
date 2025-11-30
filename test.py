@@ -14,9 +14,10 @@ from datasets.collate_functions import pad_captions
 def run_eval(df, dataset, EXPERIMENT_PATH):
     df = df.copy()
     sampled_df = df.sample(n = 6)
+    metadata = [json.loads(sampled_df.loc[i]["metadata"].replace("'", '"')) for i in sampled_df.index] 
     visualize_predictions(
         savepath=f"{EXPERIMENT_PATH}/viz.png",
-        images=dataset.get_images_from_list_id(sampled_df["id"].to_list()),
+        images=dataset.get_images_from_metadata(metadata),
         true_captions=[sampled_df.loc[i]['true_caption'] for i in sampled_df.index],
         pred_captions=[sampled_df.loc[i]['generated_caption'] for i in sampled_df.index],
         n_rows=2,
@@ -60,15 +61,20 @@ def run_test(config):
     encoder = EncoderClass(**config["ENCODER"].get("PARAMS", {}))
     decoder = DecoderClass(vocab_size=tokenizer.vocab_size, **config["DECODER"].get("PARAMS", {}))
     model = ModelClass(encoder, decoder)
-    model.load_state_dict(torch.load(f"{EXPERIMENT_PATH}/best_model.pth", weights_only=True))
+    state_dict = torch.load(f"{EXPERIMENT_PATH}/best_model.pth", weights_only=True, map_location="cpu")
+    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
+    model.to(DEVICE)
+
     dataset = DatasetClass(
         tokenizer=tokenizer, img_transform=encoder.transforms,
+        rank=0,world_size=1,
         **config["DATASET"]["TEST"].get("PARAMS", {})
     )
 
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
-        prefetch_factor=4, pin_memory=True,
+        prefetch_factor=2, pin_memory=False,
         collate_fn=lambda x: pad_captions(x, pad_token_id),
         shuffle=(True if not isinstance(dataset, torch.utils.data.IterableDataset) else None)
     )
@@ -77,6 +83,7 @@ def run_test(config):
     test_df = pd.DataFrame(outputs)
     test_df.to_csv(f"{EXPERIMENT_PATH}/test_results.csv", index=False)
     print(f"Results saved at: {EXPERIMENT_PATH}/test_results.csv")
+    test_df = pd.read_csv(f"{EXPERIMENT_PATH}/test_results.csv")
     run_eval(test_df, dataset, EXPERIMENT_PATH)
     return
 

@@ -92,7 +92,8 @@ def run_training(config, rank, local_rank, world_size):
 
     model = ModelClass(encoder, decoder)
     if CHECKPOINT_NAME is not None:
-        checkpoint_wts = torch.load(f"{EXPERIMENT_PATH}/checkpoints/{CHECKPOINT_NAME}", weights_only=True)
+        checkpoint_wts = torch.load(f"{EXPERIMENT_PATH}/checkpoints/{CHECKPOINT_NAME}", weights_only=True, map_location="cpu")
+        checkpoint_wts = {k.replace("module.", ""): v for k, v in checkpoint_wts.items()}
         model.load_state_dict(checkpoint_wts)
 
     if not (wandb_run is None):
@@ -131,13 +132,13 @@ def run_training(config, rank, local_rank, world_size):
         train_dataloader = DataLoader(
             train_dataset, batch_size=BATCH_SIZE, 
             num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
-            prefetch_factor=4, pin_memory=False, shuffle=(True if not isinstance(train_dataset, IterableDataset) else None)
+            prefetch_factor=2, pin_memory=False, shuffle=(True if not isinstance(train_dataset, IterableDataset) else None)
         )
         
         val_dataloader = DataLoader(
             val_dataset, batch_size=BATCH_SIZE, 
             num_workers=NUM_WORKERS, collate_fn=lambda x: pad_captions(x, pad_token_id),
-            prefetch_factor=4, pin_memory=False
+            prefetch_factor=2, pin_memory=False
         )
 
         train_loss = model.module.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)
