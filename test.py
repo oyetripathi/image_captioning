@@ -76,7 +76,7 @@ def run_test(config):
         dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
         prefetch_factor=2, pin_memory=False,
         collate_fn=lambda x: pad_captions(x, pad_token_id),
-        shuffle=(True if not isinstance(dataset, torch.utils.data.IterableDataset) else None)
+        shuffle=(False if not isinstance(dataset, torch.utils.data.IterableDataset) else None)
     )
 
     outputs = model.generate_caption(dataloader, tokenizer, DEVICE, beam_size=5)

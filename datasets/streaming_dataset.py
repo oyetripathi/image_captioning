@@ -105,6 +105,11 @@ class LAIONPOPDataset(IterableDataset):
         if len(caption.split()) < 3:
             return False
         return True
+    
+    @staticmethod
+    def slice_sentence(x):
+        lst = x.split('.')
+        return '.'.join(lst[:2] + (lst[-1:] if len(lst)>2 else []))
 
     def choose_pq(self):
         worker_info = get_worker_info()
@@ -128,8 +133,10 @@ class LAIONPOPDataset(IterableDataset):
         chosen_pq  = random.choice(worker_files)
         self.df = pd.read_parquet(
             f"{self.pq_path}/{chosen_pq}"
-        ).rename(
-            columns={"llava_caption": "caption", "key": "id"}
+        )
+        self.df["modified_caption"] = self.df["llava_caption"].apply(self.slice_sentence)
+        self.df = self.df.rename(
+            columns={"modified_caption": "caption", "key": "id"}
         )[["id", "url", "caption"]]
         if len(self.df) > self.samples_per_worker:
             self.df = self.df.sample(n=self.samples_per_worker).reset_index(drop=True)

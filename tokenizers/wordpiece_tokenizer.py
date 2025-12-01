@@ -8,13 +8,14 @@ def preprocess_sentence(txt):
     txt = re.sub(r"([.,])", r" \1 ", txt)
     txt = re.sub(r"([a-z])([0-9])", r"\1 \2", txt)
     txt = re.sub(r"([0-9])([a-z])", r"\1 \2", txt)
+    txt = re.sub(r"(\d)", r" \1 ", txt)
     txt = re.sub(r"\s+", " ", txt)
-    txt = txt.strip()    
+    txt = txt.strip()
     return txt
 
 
 class WordPieceTokenizer(BaseTokenizer):
-    def __init__(self, max_len=250):
+    def __init__(self, max_len=75):
         super().__init__(max_len)
         self.vocab = None
         self.id2word = None
