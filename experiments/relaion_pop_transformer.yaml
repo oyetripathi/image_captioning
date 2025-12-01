@@ -39,7 +39,7 @@ DECODER:
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
-CHECKPOINT_NAME: "best_model.pth"
+CHECKPOINT_NAME: "best_model_v1.pth"
 TRAINING:
   EPOCHS: 4
   BATCH_SIZE: 32

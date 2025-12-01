@@ -5,6 +5,7 @@ import yaml
 import torch
 import wandb
 import pandas as pd
+from torch.nn.modules.batchnorm import SyncBatchNorm 
 from utils.parse_import import run_imports
 from utils.load_embeddings import load_pretrained_embeddings
 from utils.schedulers import get_inverse_sqrt_scheduler, exponential_ramp_up_scheduler
@@ -103,6 +104,7 @@ def run_training(config, rank, local_rank, world_size):
         print(f"Total encoder parameters: {sum(p.numel() for p in model.encoder.parameters() if p.requires_grad)}")
         print(f"Total decoder parameters: {sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)}")
 
+    model = SyncBatchNorm.convert_sync_batchnorm(model)
     model = DDP(model.to(DEVICE), device_ids=[local_rank] if torch.cuda.is_available() else None)
 
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id, label_smoothing=0.1)
