@@ -16,7 +16,7 @@ DATASET:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/test"
       urls_per_batch: 5
-      samples_per_worker: 200
+      samples_per_worker: 400
 TOKENIZER:
   MODULE: "tokenizers.wordpiece_tokenizer"
   CLASS: "WordPieceTokenizer"
@@ -32,10 +32,10 @@ DECODER:
   CLASS: "DecoderTransformer"
   PARAMS:
     feature_dim: 2048
-    embed_dim: 128
+    embed_dim: 256
     d_model: 512
     num_heads: 8
-    num_layers: 8
+    num_layers: 10
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"

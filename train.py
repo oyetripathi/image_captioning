@@ -113,7 +113,8 @@ def run_training(config, rank, local_rank, world_size):
 
     best_val_loss = float("inf")
     for epoch in range(EPOCHS):
-        print(f"Running Epoch {epoch+1}/{EPOCHS}")
+        if rank == 0:
+            print(f"Running Epoch {epoch+1}/{EPOCHS}")
 
         aug_level = exponential_ramp_up_scheduler(epoch+1, AUGMENTATION_START_EPOCH, EPOCHS, curvature=1)
         aug_transforms = get_augmentation_transforms(aug_level)
@@ -143,7 +144,7 @@ def run_training(config, rank, local_rank, world_size):
             prefetch_factor=2, pin_memory=False
         )
 
-        train_loss = model.module.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run)
+        train_loss = model.module.train_model(train_dataloader, loss_fn, optimizer, scheduler, DEVICE, wandb_run, end_token_id=tokenizer.vocab["<end>"], min_len=15)
         val_loss = model.module.eval_model(val_dataloader, loss_fn, DEVICE, wandb_run)
         model.module.log_sample_captions(train_dataloader, train_dataset, tokenizer, DEVICE, wandb_run, epoch, num_samples=10)
         if rank == 0:

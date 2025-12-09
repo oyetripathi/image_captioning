@@ -16,7 +16,7 @@ class VanillaCaptioningModel(nn.Module):
         outputs = self.decoder(captions, img_encoding, masks)
         return outputs
     
-    def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None):
+    def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None, end_token_id=None, min_len=15):
         total_loss = 0
         num_batch = 0
         self.train()
@@ -24,6 +24,8 @@ class VanillaCaptioningModel(nn.Module):
             optimizer.zero_grad()
             images, captions, masks = batch["images"].to(device), batch["captions"].to(device), batch["masks"].to(device)
             logits = self(images, captions[:, :-1], masks[:, :-1])
+            if not (end_token_id is None):
+                logits[:, :min_len, end_token_id] = -1e9
             iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
             iter_loss.backward()
             nn.utils.clip_grad_norm_(self.parameters(), 1.0)
