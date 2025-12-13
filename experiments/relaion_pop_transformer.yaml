@@ -5,12 +5,12 @@ DATASET:
   TRAIN:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/train"
-      urls_per_batch: 10
-      samples_per_worker: 2000
+      urls_per_batch: 16
+      samples_per_worker: 4000
   VAL:
     PARAMS:
       pq_path: "data_files/laion_pop/relaion-pop/val"
-      urls_per_batch: 10
+      urls_per_batch: 16
       samples_per_worker: 200
   TEST:
     PARAMS:
@@ -21,7 +21,7 @@ TOKENIZER:
   MODULE: "tokenizers.wordpiece_tokenizer"
   CLASS: "WordPieceTokenizer"
   BUILD_VOCAB_PARAMS:
-    vocab_path: "data_files/laion_pop/relaion-pop/bert_base_uncased_vocab_15k.json"
+    vocab_path: "data_files/laion_pop/relaion-pop/bert_base_uncased_vocab_15k_v2.json"
 ENCODER:
   MODULE: "models.encoders"
   CLASS: "ResNet101Encoder"
@@ -39,15 +39,15 @@ DECODER:
 MODEL:
   MODULE: "models.vanilla_model"
   CLASS: "VanillaCaptioningModel"
-CHECKPOINT_NAME: "best_model_v1.pth"
+# CHECKPOINT_NAME: "best_model_v1.pth"
 TRAINING:
-  EPOCHS: 4
-  BATCH_SIZE: 32
+  EPOCHS: 10
+  BATCH_SIZE: 128
   LR: 0.0001
-  WARMUP_STEPS: 50
-  NUM_WORKERS: 4
+  WARMUP_STEPS: 500
+  NUM_WORKERS: 8
   AUGMENTATION:
-    FLAG: True
+    FLAG: False
     START_EPOCH: 0
 TESTING:
   BATCH_SIZE: 16

@@ -1,0 +1,58 @@
+EXPERIMENT_NAME: "ViT"
+DATASET:
+  MODULE: "datasets.streaming_dataset"
+  CLASS: "LAIONPOPDataset"
+  TRAIN:
+    PARAMS:
+      pq_path: "data_files/laion_pop/relaion-pop/train"
+      urls_per_batch: 16
+      samples_per_worker: 4000
+  VAL:
+    PARAMS:
+      pq_path: "data_files/laion_pop/relaion-pop/val"
+      urls_per_batch: 16
+      samples_per_worker: 200
+  TEST:
+    PARAMS:
+      pq_path: "data_files/laion_pop/relaion-pop/test"
+      urls_per_batch: 5
+      samples_per_worker: 400
+TOKENIZER:
+  MODULE: "tokenizers.wordpiece_tokenizer"
+  CLASS: "WordPieceTokenizer"
+  BUILD_VOCAB_PARAMS:
+    vocab_path: "data_files/laion_pop/relaion-pop/bert_base_uncased_vocab_15k_v2.json"
+ENCODER:
+  MODULE: "models.encoders"
+  CLASS: "EncoderTransformer"
+  PARAMS:
+    patch_size: 16
+    d_model: 512
+    num_heads: 8
+    num_layers: 10
+DECODER:
+  MODULE: "models.decoders"
+  CLASS: "DecoderTransformer"
+  PARAMS:
+    feature_dim: 512
+    embed_dim: 256
+    d_model: 512
+    num_heads: 8
+    num_layers: 10
+MODEL:
+  MODULE: "models.vanilla_model"
+  CLASS: "VanillaCaptioningModel"
+TRAINING:
+  EPOCHS: 10
+  BATCH_SIZE: 16
+  ENCODER_LR: 0.0001
+  DECODER_LR: 0.0005
+  WARMUP_STEPS: 500
+  NUM_WORKERS: 1
+  AUGMENTATION:
+    FLAG: False
+    START_EPOCH: 0
+TESTING:
+  BATCH_SIZE: 16
+  NUM_WORKERS: 4
+LOG_WANDB: True

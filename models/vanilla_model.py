@@ -15,6 +15,15 @@ class VanillaCaptioningModel(nn.Module):
         img_encoding = self.encoder(images)
         outputs = self.decoder(captions, img_encoding, masks)
         return outputs
+
+    @staticmethod
+    def eos_suppression_loss(logits, end_token_id, min_len=15, beta=1):
+        if end_token_id is None:
+            return 0
+        eos_logit = logits[:, :, end_token_id]
+        eos_prob  = torch.softmax(logits, dim=-1)[:, :, end_token_id]
+        penalty_region = eos_prob[:, :min_len]
+        return beta * penalty_region.mean()
     
     def train_model(self, train_loder, loss_fn, optimizer, scheduler, device, wandb_run=None, end_token_id=None, min_len=15):
         total_loss = 0
@@ -23,10 +32,8 @@ class VanillaCaptioningModel(nn.Module):
         for batch_idx, batch in enumerate(tqdm(train_loder)):
             optimizer.zero_grad()
             images, captions, masks = batch["images"].to(device), batch["captions"].to(device), batch["masks"].to(device)
-            logits = self(images, captions[:, :-1], masks[:, :-1])
-            if not (end_token_id is None):
-                logits[:, :min_len, end_token_id] = -1e9
-            iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
+            logits, __ = self(images, captions[:, :-1], masks[:, :-1])
+            iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1)) + self.eos_suppression_loss(logits, end_token_id, min_len)
             iter_loss.backward()
             nn.utils.clip_grad_norm_(self.parameters(), 1.0)
             optimizer.step()
@@ -35,7 +42,8 @@ class VanillaCaptioningModel(nn.Module):
             num_batch += 1
             if wandb_run:
                 wandb_run.log({"Batch Loss": iter_loss.item()})
-                wandb_run.log({"Learning Rate": optimizer.param_groups[0]["lr"]})
+                wandb_run.log({"Encoder Learning Rate": optimizer.param_groups[0]["lr"]})
+                wandb_run.log({"Decoder Learning Rate": optimizer.param_groups[1]["lr"]})
         return total_loss / num_batch
         
     def eval_model(self, val_loader, loss_fn, device, wandb_run=None):
@@ -45,7 +53,7 @@ class VanillaCaptioningModel(nn.Module):
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader)):
                 images, captions, masks = batch["images"].to(device), batch["captions"].to(device), batch["masks"].to(device)
-                logits = self(images, captions[:, :-1], masks[:, :-1])
+                logits, __ = self(images, captions[:, :-1], masks[:, :-1])
                 iter_loss = loss_fn(logits.view(-1, logits.shape[-1]), captions[:, 1:].reshape(-1))
                 total_loss += iter_loss.item()
                 num_batch += 1
@@ -97,7 +105,7 @@ class VanillaCaptioningModel(nn.Module):
 
         for _ in range(max_len):
             input_ids = sequences.view(-1, sequences.shape[-1])
-            logits = self.decoder(input_ids, img_encodings)
+            logits, __ = self.decoder(input_ids, img_encodings)
             next_token_logits = logits[:, -1, :]
             log_probs = torch.log_softmax(next_token_logits, dim=-1)
 

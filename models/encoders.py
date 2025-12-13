@@ -71,11 +71,13 @@ class EncoderTransformerLayer(nn.Module):
         self.ff = TransformerFeedForward(d_model, ff_dim=4*d_model)
         self.layer_norm_ff = nn.LayerNorm(d_model)
     def forward(self, x):
+        x = self.layer_norm(x)
         out1, __ = self.self_attn(x, x, x)
-        out1 = self.layer_norm(self.dropout(out1) + x)
-
-        out2 = self.ff(out1)
-        out2 = self.layer_norm_ff(self.dropout(out2) + out1)
+        out1 = self.dropout(out1) + x
+        
+        out2 = self.layer_norm_ff(out1)
+        out2 = self.ff(out2)
+        out2 = self.dropout(out2) + out1
         return out2
 
 class EncoderTransformer(nn.Module):
@@ -91,7 +93,6 @@ class EncoderTransformer(nn.Module):
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         self.patch_embedding = nn.Linear(3*patch_size*patch_size, d_model)
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.d_model))
         self.dropout = nn.Dropout(0.1)
         self.layer_norm = nn.LayerNorm(self.d_model)
 
@@ -99,35 +100,17 @@ class EncoderTransformer(nn.Module):
             EncoderTransformerLayer(d_model, num_heads) for _ in range(num_layers)
         ])
     
-    def get_positional_encoding_2d(self, ndim, embed_dim, device, include_cls_token=False):
-        assert embed_dim % 4 == 0
-
-        half_dim = embed_dim // 2
-        quarter_dim = embed_dim // 4
-
-        pe_h = torch.zeros(1, ndim * ndim, half_dim, device=device)
-        num_h = torch.arange(ndim, device=device).repeat_interleave(ndim).unsqueeze(-1)
-        div_term_h = torch.exp(
-            torch.arange(0, quarter_dim, device=device) * -(math.log(10000.0) / quarter_dim)
-        )
-        pe_h[:, :, 0::2] = torch.sin(num_h / div_term_h)
-        pe_h[:, :, 1::2] = torch.cos(num_h / div_term_h)
-
-        pe_w = torch.zeros(1, ndim * ndim, half_dim, device=device)
-        num_w = torch.arange(ndim, device=device).repeat(ndim).unsqueeze(-1)
-        div_term_w = torch.exp(
-            torch.arange(0, quarter_dim, device=device) * -(math.log(10000.0) / quarter_dim)
-        )
-        pe_w[:, :, 0::2] = torch.sin(num_w / div_term_w)
-        pe_w[:, :, 1::2] = torch.cos(num_w / div_term_w)
-        
-        pe = torch.cat((pe_h, pe_w), dim=-1)
-
-        if include_cls_token:
-            cls_pe = torch.zeros(1, 1, embed_dim, device=device)
-            pe = torch.cat([cls_pe, pe], dim=1)
+    def get_positional_encoding(self, embeddings, device):
+        batch_size = embeddings.shape[0]
+        seq_len = embeddings.shape[1]
+        pe = torch.zeros((seq_len, self.d_model), dtype=torch.float32).to(device)
+        phase_num = torch.arange(0, seq_len, dtype=torch.float32)
+        phase_denom = (10**4) ** (-1*torch.arange(0, self.d_model, 2)/(self.d_model))
+        phase = phase_num.unsqueeze(-1) * phase_denom.unsqueeze(0)
+        pe[:, ::2] = torch.sin(phase)
+        pe[:, 1::2] = torch.cos(phase)[:, :self.d_model//2]
+        pe = pe.unsqueeze(0).repeat(batch_size, 1, 1)
         return pe
-
     
     def forward(self, x):
         assert x.shape[2] % self.patch_size == 0 and x.shape[3] % self.patch_size == 0, "Image dimensions must be divisible by patch size"
@@ -142,9 +125,8 @@ class EncoderTransformer(nn.Module):
                 .permute(0, 2, 3, 1, 4, 5)
                 .reshape(batch_size, num_patches_dim*num_patches_dim, 3*self.patch_size*self.patch_size)
         )
-        x = self.patch_embedding(x)
-        x = torch.cat([self.cls_token.repeat(batch_size, 1, 1), x], dim=1)
-        pos_enc = self.get_positional_encoding_2d(num_patches_dim, self.d_model, device=device, include_cls_token=True)
+        x = self.layer_norm(self.patch_embedding(x))
+        pos_enc = self.get_positional_encoding(x, device)
         x = self.dropout(x + pos_enc)
 
         for layer in self.layers:

@@ -96,7 +96,7 @@ class DecoderTransformerLayer(nn.Module):
             causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=mask.device, dtype=torch.bool))
             mask = mask.unsqueeze(1).unsqueeze(2) & causal_mask.unsqueeze(0)
 
-        out1, _ = self.self_attn(embeddings, embeddings, embeddings, mask)
+        out1, attn_out = self.self_attn(embeddings, embeddings, embeddings, mask)
         out1 = self.layer_norm1(self.dropout(out1) + embeddings)
 
         out2, __ = self.cross_attn(out1, img_encodings, img_encodings)
@@ -105,7 +105,7 @@ class DecoderTransformerLayer(nn.Module):
         out3 = self.ff(out2)
 
         out = self.layer_norm3(self.dropout(out3) + out2)
-        return out
+        return out, attn_out
 
 
 class DecoderTransformer(nn.Module):
@@ -149,9 +149,11 @@ class DecoderTransformer(nn.Module):
         embeddings = self.project_embed(self.embed(captions)) * (self.d_model ** 0.5)
         pos_enc = self.get_positional_encoding(embeddings, embeddings.device)
         out = self.dropout(self.layer_norm(embeddings + pos_enc))
-
+        
+        attn_outs = []
         for layer in self.layers:
-            out = layer(out, img_encodings, mask)
+            out, attn_out = layer(out, img_encodings, mask)
+            attn_outs.append(attn_out)
 
         out = self.linear(out)
-        return out
+        return out, attn_outs

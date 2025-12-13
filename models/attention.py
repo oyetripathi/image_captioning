@@ -32,13 +32,14 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
         self.softmax = nn.Softmax(dim=-1)
+        self.dropout = nn.Dropout(0.1)
     
     def forward(self, query, key, value, mask=None):
         d_k = query.shape[-1]
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
         if mask is not None:
             scores.masked_fill_(mask == 0, float('-inf'))
-        attn_weights = self.softmax(scores)
+        attn_weights = self.dropout(self.softmax(scores))
         output = torch.matmul(attn_weights, value)
         return output, attn_weights
 

@@ -59,7 +59,8 @@ def run_training(config, rank, local_rank, world_size):
 
     EPOCHS = training_config.get("EPOCHS", 1)
     BATCH_SIZE = training_config.get("BATCH_SIZE", 32)
-    LR = training_config.get("LR", 1e-3)
+    ENCODER_LR = training_config.get("ENCODER_LR", 1e-4)
+    DECODER_LR = training_config.get("DECODER_LR", 1e-3)
     WARMUP_STEPS = training_config.get("WARMUP_STEPS", 200)
     DEVICE = (torch.device(f"cuda:{local_rank}")) if torch.cuda.is_available() else "cpu"
     NUM_WORKERS = training_config.get("NUM_WORKERS", 1)
@@ -108,7 +109,13 @@ def run_training(config, rank, local_rank, world_size):
     model = DDP(model.to(DEVICE), device_ids=[local_rank] if torch.cuda.is_available() else None)
 
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id, label_smoothing=0.1)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": model.module.encoder.parameters(), "lr": ENCODER_LR},
+            {"params": model.module.decoder.parameters(), "lr": DECODER_LR}
+        ],
+        weight_decay=0.05
+    )
     scheduler = get_inverse_sqrt_scheduler(optimizer, warmup_steps=WARMUP_STEPS)
 
     best_val_loss = float("inf")
@@ -116,8 +123,11 @@ def run_training(config, rank, local_rank, world_size):
         if rank == 0:
             print(f"Running Epoch {epoch+1}/{EPOCHS}")
 
-        aug_level = exponential_ramp_up_scheduler(epoch+1, AUGMENTATION_START_EPOCH, EPOCHS, curvature=1)
-        aug_transforms = get_augmentation_transforms(aug_level)
+        if ENABLE_AUGMENTATION:
+            aug_level = exponential_ramp_up_scheduler(epoch+1, AUGMENTATION_START_EPOCH, EPOCHS, curvature=1)
+            aug_transforms = get_augmentation_transforms(aug_level)
+        else:
+            aug_transforms = None
 
         train_dataset = DatasetClass(
             tokenizer=tokenizer, img_transform=encoder.transforms,
